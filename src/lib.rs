@@ -1,7 +1,7 @@
-mod key_management;
+mod secret_management;
 
-pub fn generate_secret_key(username: &str) {
-    let my_key = key_management::MyKey::new(username, 32).unwrap();
-    let key = my_key.get_key();
-    println!("The secret Key is: {:?}", key);
+// Return an instance of MyKey of the key corresponding to the key description
+pub fn get_key_instance(key_description: &str) -> Result<secret_management::MyKey, secret_management::SecretKeyErrors> {
+    let my_key = secret_management::MyKey::new(key_description, 32);
+    my_key
 }

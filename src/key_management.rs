@@ -26,7 +26,11 @@ impl MyKey {
     // Create a new instance of MyKey
     pub fn new(username: &str, key_size: usize) -> Result<MyKey, SecretKeyErrors> {
 
-        let entry = keyring::Entry::new("schnorr_nizk_auth_service", username);
+        // Set the KEYRING_BACKEND environment variable to SecretService
+        std::env::set_var("KEYRING_BACKEND", "secret_service");
+
+        let entry = keyring::Entry::new("schnorr_nizk_auth_service", username).unwrap();
+
 
         // Generate an instance of MyKey
         let mut my_key = MyKey {
@@ -43,6 +47,7 @@ impl MyKey {
                 my_key.key = secret_key;
             },
             Err(e) => {
+                println!("Read key Error is: {:?}\n", e);
                 // Generate a new random Key, since no key was found, and assign it to MyKey
                 println!("Key not found in the OS! Creating a new Key.\n");
                 let key = my_key.generate_random_key(key_size);
@@ -50,7 +55,7 @@ impl MyKey {
 
                 // Store Key in the OS
                 if let Err(e) = my_key.store_secret_key(){
-                    println!("Error is: {:?}", e);
+                    println!("Error is: {:?}\n", e);
                     Err(e).expect("Couldn't store key in the OS.")
                 }
             }
@@ -119,7 +124,10 @@ impl MyKey {
                     Err(e) => Err(SecretKeyErrors::UnableToDecodeString(e))
                 }
             },
-            Err(e) => Err(SecretKeyErrors::UnableToGetKeyFromOS(e))
+            Err(e) => {
+                println!("Read error from keyring: {:?}\n", e);
+                Err(SecretKeyErrors::UnableToGetKeyFromOS(e))
+            }
         }
     }
 

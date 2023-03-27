@@ -9,12 +9,14 @@ crate-type = ["lib"]
 
 [dependencies]
 rand = "0.8.5"
-keyring = "1.2.0"
+keyring = "2.0.1"
 base64 = "0.21.0"
+linux-keyutils = "0.2.3"
+
 
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-feature=+crt-static"]
 
 [target.armv7-unknown-linux-gnueabihf]
-linker = "arm-none-linux-gnueabihf-gcc"
-rustflags = ["-C", "linker=arm-none-linux-gnueabihf-gcc"]
+
+#linker = "arm-none-linux-gnueabihf-gcc"
+
