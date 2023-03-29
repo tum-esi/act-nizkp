@@ -8,4 +8,4 @@ The `Cross.toml` file provide the comfiguration for the cross compilation.
 The `Dockerfile` contains the docker image used to compile for `armv7-unknown-linux-gnueabihf`.
 
 ## Known Issues
-When running the code using the cross toll, the secret key management system won't work probably. However, when built using cross and run directly on a raspberry pi 3 it would work. Tested only for raspberry pi 3 and linux computers.
+* When running the code using the cross tool, the secret key management system won't work probably. However, when built using cross and run directly on a raspberry pi 3 it would work. Tested only for raspberry pi 3 and linux computers.

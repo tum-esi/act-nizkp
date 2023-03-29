@@ -56,10 +56,11 @@ impl MyKey {
                                 println!("Successfully saved Key in OS. \n");
 
                                 // Define Key Permissions
+                                // https://docs.rs/linux-keyutils/latest/src/linux_keyutils/permissions.rs.html#33
                                 let perms = KeyPermissionsBuilder::builder()
                                     .posessor(Permission::ALL)
                                     .user(Permission::ALL)
-                                    .group(Permission::VIEW | Permission::READ)
+                                    .group(Permission::VIEW)
                                     .build();
 
                                 // Set key permissions
