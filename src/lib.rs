@@ -1,5 +1,5 @@
 mod secret_management;
-mod schnorr_identification;
+pub mod schnorr_identification;
 
 
 // Return an instance of MyKey of the key corresponding to the key description
