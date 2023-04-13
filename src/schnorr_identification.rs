@@ -1,6 +1,6 @@
 extern crate rand;
 use rand::{thread_rng, RngCore};
-pub mod hashing;
+use tiny_keccak::{Hasher, Kmac, Sha3};
 
 extern crate curve25519_dalek;
 use curve25519_dalek::scalar::Scalar;
@@ -9,7 +9,7 @@ use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 
 
 // Generate a random 32-byte value
-fn generate_random_32bytes() -> [u8; 32] {
+pub fn generate_random_32bytes() -> [u8; 32] {
     let mut rng = thread_rng();
     let mut random: [u8; 32] = [0; 32];
     rng.fill_bytes(&mut random);
@@ -33,9 +33,67 @@ pub fn key_gen() -> ([u8; 32], [u8; 32]) {
 }
 
 // Generate a random 32-byte value with type Scalar
-fn generate_random_scalar() -> Scalar {
+pub fn generate_random_scalar() -> Scalar {
     let random_bytes = generate_random_32bytes();
     Scalar::from_bytes_mod_order(random_bytes)
+}
+
+// Generate a Hash using sha3
+pub fn sha3_256(arg1: &[u8], arg2: Option<&[u8]>, arg3: Option<&[u8]>, arg4: Option<&[u8]>) -> [u8; 32] {
+    // Define a kmac instance
+    let mut sha3_instance = Sha3::v256();
+
+    // Include main arg into data
+    sha3_instance.update(arg1);
+
+    // Check the optional args
+    let args = [arg2, arg3, arg4];
+    for arg in args.iter() {
+        match arg {
+            Some(x) => {
+                sha3_instance.update(x);
+            },
+            None => {
+                println!("Arg ignored.")
+            }
+        }
+    }
+
+    // Generate Hash
+    let mut digest = [0u8; 32];
+    sha3_instance.finalize(&mut digest);
+
+    // Return result
+    digest
+}
+
+// Generate a Kmac Tag
+pub fn kmac_256(key: [u8; 32], arg1: &[u8], arg2: Option<&[u8]>, arg3: Option<&[u8]>) -> [u8; 32] {
+    // Define a kmac instance
+    let mut kmac_instance = Kmac::v256(&key, b"");
+
+    // Include main arg into data
+    kmac_instance.update(arg1);
+
+    // Check the optional args
+    let args = [arg2, arg3];
+    for arg in args.iter() {
+        match arg {
+            Some(x) => {
+                kmac_instance.update(x);
+            },
+            None => {
+                println!("Arg ignored.")
+            }
+        }
+    }
+
+    // Generate Tag
+    let mut tag = [0u8; 32];
+    kmac_instance.finalize(&mut tag);
+
+    // Return Tag
+    tag
 }
 
 // Calculate the response
@@ -58,10 +116,10 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32]) -> ([u8; 3
     let commitment = (r * &ED25519_BASEPOINT_POINT).compress().to_bytes();
 
     // Generate challenge using KMAC function with a random value
-    let challenge = hashing::kmac_256(shared_secret_key,
-                                      &commitment,
-                                      None,
-                                      None);
+    let challenge = kmac_256(shared_secret_key,
+                                &commitment,
+                                None,
+                                None);
 
     // Convert challenge into a Scalar
     let c = Scalar::from_bytes_mod_order(challenge);
@@ -83,7 +141,7 @@ fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
 // Todo: Add optional arguments and counter support
 fn verify_challenge(shared_secret: [u8; 32], commitment: [u8; 32], challenge: [u8; 32]) -> bool {
     // Generate expected challenge using KMAC function with a random value
-    let expected_challenge = hashing::kmac_256(shared_secret,
+    let expected_challenge = kmac_256(shared_secret,
                                                &commitment,
                                                None,
                                                None);
@@ -95,7 +153,7 @@ fn verify_challenge(shared_secret: [u8; 32], commitment: [u8; 32], challenge: [u
 // Todo: Add optional arguments and counter support
 // Todo: Shared secret key suppot
 pub fn verify_proof(public_key: [u8; 32], shared_secret: [u8; 32],
-              proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
+                    proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
 
     // Convert compressed public key into an Edwards point
     let public_key_ed = bytes_to_edwards(&public_key);
