@@ -97,7 +97,7 @@ pub fn kmac_256(key: [u8; 32], arg1: &[u8], arg2: Option<&[u8]>, arg3: Option<&[
 }
 
 // Calculate the response
-fn generate_proof_response(random_secret: Scalar, private_key: Scalar, challenge: Scalar) -> [u8; 32] {
+pub fn generate_proof_response(random_secret: Scalar, private_key: Scalar, challenge: Scalar) -> [u8; 32] {
     // Compute the response
     (random_secret + private_key * &challenge).to_bytes()
 }
@@ -133,7 +133,7 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32]) -> ([u8; 3
 
 // Turn bytes value into Edward points.
 fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
-    let compressed: CompressedEdwardsY = CompressedEdwardsY(*bytes);
+    let compressed = CompressedEdwardsY(*bytes);
     compressed.decompress().unwrap()
 }
 
@@ -152,7 +152,7 @@ fn verify_challenge(shared_secret: [u8; 32], commitment: [u8; 32], challenge: [u
 // Verify the proof
 // Todo: Add optional arguments and counter support
 // Todo: Shared secret key suppot
-pub fn verify_proof(public_key: [u8; 32], shared_secret: [u8; 32],
+pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32],
                     proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
 
     // Convert compressed public key into an Edwards point
@@ -175,4 +175,25 @@ pub fn verify_proof(public_key: [u8; 32], shared_secret: [u8; 32],
 
     // Compare the received commitment and the expected result
     return (lhs == rhs) && challenge_accepted;
+}
+
+// Verify the proof
+pub fn verify_int_proof(public_key: [u8; 32], proof: ([u8; 32], Scalar, [u8; 32])) -> bool {
+
+    // Convert compressed public key into an Edwards point
+    let public_key_ed = bytes_to_edwards(&public_key);
+
+    // Get the commitment and the challenge response
+    let (commitment, challenge_sc, response) = proof;
+
+    // Convert values for schnorr verification
+    let commitment_ed = bytes_to_edwards(&commitment);
+    let response_sc = Scalar::from_bytes_mod_order(response);
+
+    // Compute the rhs and the lhs of the expected result
+    let lhs = response_sc * &ED25519_BASEPOINT_POINT;
+    let rhs = commitment_ed + challenge_sc * public_key_ed;
+
+    // Compare the received commitment and the expected result
+    return lhs == rhs;
 }

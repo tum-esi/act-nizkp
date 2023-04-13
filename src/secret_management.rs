@@ -7,6 +7,7 @@ use rand::RngCore;
 #[derive(Debug)]
 pub enum SecretKeyErrors {
     KeyRingNotFound(KeyError),
+    KeyNotProvided,
     UnableToStoreKeyInOS(KeyError),
     UnableToChangeKeyPermissions(KeyError),
     UnableToChangeKeyValue(KeyError),
@@ -23,7 +24,7 @@ pub struct MyKey {
 
 impl MyKey {
     // Create a new instance of MyKey
-    pub fn new(key_description: &str, key_size: usize) -> Result<MyKey, SecretKeyErrors> {
+    pub fn new(key_description: &str, key_size: usize, key: Option<Vec<u8>>) -> Result<MyKey, SecretKeyErrors> {
         // Define keyring of current key
         // See [KeyRingIdentifier] and `man 2 keyctl` for more information on default
         // keyrings for processes.
@@ -45,10 +46,14 @@ impl MyKey {
                     },
                     Err(e) => {
                         println!("Read key Error is: {:?}\n", e);
-                        // Generate a new random Key, since no key was found, and assign it to MyKey
-                        println!("Key not found in the OS! Creating a new Key.\n");
-                        let key = my_key.generate_random_key(key_size);
-                        my_key.key = key;
+                        println!("Value not found in the OS! Creating a new instance.\n");
+
+                        // Assign provided key to MyKey
+                        if key != None {
+                            my_key.key = key.unwrap();
+                        }else {
+                            return Err(SecretKeyErrors::KeyNotProvided);
+                        }
 
                         // Store key in Keyring
                         match ring.add_key(key_description, &my_key.key) {

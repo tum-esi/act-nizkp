@@ -26,18 +26,19 @@ pub const CONST_NO_OTHER_VALUES_TO_GENERATE: u8 = 0;
 pub const CONST_NEXT_VALUES_HAS_TO_BE_GENERATED: u8 = 1;
 
 // Return an instance of MyKey of the key corresponding to the key description
-pub fn get_key_instance(key_description: &str) -> Result<secret_management::MyKey, secret_management::SecretKeyErrors> {
-    let my_key = secret_management::MyKey::new(key_description, 32);
+pub fn get_key_instance(key_description: &str, key: Option<Vec<u8>>) -> Result<secret_management::MyKey, secret_management::SecretKeyErrors> {
+    let my_key = secret_management::MyKey::new(key_description, 32, key);
     my_key
 }
 
-pub fn get_int_mut_auth_instance(recipient_ID: u32, role: u8) -> IntMutAuth {
-    let mut ins = IntMutAuth::new(recipient_ID, role);
+pub fn get_int_mut_auth_instance(sender_ID: u32, recipient_ID: u32, role: u8) -> IntMutAuth {
+    let mut ins = IntMutAuth::new(sender_ID, recipient_ID, role);
     ins
 }
 
 // Struct for interactive mutual authentication for secret key sharing
 pub struct IntMutAuth {
+    pub sender_ID: u32,
     pub recipient_ID: u32,
     pub role: u8,
     stage: u8,
@@ -52,7 +53,7 @@ pub struct IntMutAuth {
 
 impl IntMutAuth {
     // Create a new instance of Int_mut_auth
-    pub fn new(recipient_ID: u32, role: u8) -> IntMutAuth {
+    pub fn new(sender_ID: u32, recipient_ID: u32, role: u8) -> IntMutAuth {
         // Generate random secret scalar and Commitment
         let my_random_int = schnorr_identification::generate_random_scalar();
         let my_commitment = (my_random_int * &ED25519_BASEPOINT_POINT).compress().to_bytes();
@@ -72,6 +73,7 @@ impl IntMutAuth {
 
         // Genrate Instance of interactive mutual authentication struct
         let mut int_mut_auth = IntMutAuth {
+            sender_ID,
             recipient_ID,
             role,
             stage,
@@ -147,14 +149,16 @@ impl IntMutAuth {
                 let challenge = schnorr_identification::generate_random_32bytes();
                 self.my_challenge = Scalar::from_bytes_mod_order(challenge);
 
-                // ToDo: Add response calculation
-                let response = [0u8; 32];
+                // Calculate response
+                let response = self.gen_proof();
+                self.my_response = response;
                 println!("8. Sended request type 3 to {:?}\n", self.recipient_ID);
                 (challenge, Some(response), CONST_CHALLENGE_AND_RESPONSE)
             },
             CONST_RESPONSE => {
                 // ToDo: Add response calculation
-                let response = [0u8; 32];
+                let response = self.gen_proof();
+                self.my_response = response;
                 println!("9. Sended request type 4 to {:?}\n", self.recipient_ID);
                 (response, None, CONST_RESPONSE)
             },
@@ -165,13 +169,45 @@ impl IntMutAuth {
         }
     }
 
-    pub fn verify_proof(&self) -> bool {
-        // ToDo: Add True response verification
-        true
+    // Generate Proof
+    fn gen_proof(&self) -> [u8; 32] {
+        // Fetch secret key, necessary for the proof and convert it to Scalar type
+        let desciption = format!("PrivateKey:{}", &self.sender_ID);
+        let my_secret_key = get_key_instance(&desciption, None).unwrap();
+        let key: &[u8] = my_secret_key.get_key();
+        let secret_key_bytes: [u8; 32] = <[u8; 32]>::try_from(key).unwrap();
+        let secret_key_sc = Scalar::from_bytes_mod_order(secret_key_bytes);
+
+        // Generate Proof
+        let proof = schnorr_identification::generate_proof_response(self.my_random_int,
+                                                                    secret_key_sc,
+                                                                    self.recipient_challenge);
+        // Return Proof
+        proof
     }
 
+    // Verify proof
+    pub fn verify_proof(&self) -> bool {
+        // Fetch Public Key of the recipient
+        let desciption = format!("PublicKey:{}", &self.recipient_ID);
+        let recipient_pubkey = get_key_instance(&desciption, None).unwrap();
+
+        // Convert Key into [u8; 32] format
+        let key: &[u8] = recipient_pubkey.get_key();
+        let key_bytes: [u8; 32] = <[u8; 32]>::try_from(key).unwrap();
+
+        // Verify proof
+        let proof = (self.recipient_commitment, self.my_challenge, self.recipient_response);
+        let accepted = schnorr_identification::verify_int_proof(key_bytes, proof);
+
+        // Return verification results
+        accepted
+    }
+
+    // For Debugging
     pub fn print_debug(&self) {
         println!("\n--- All Values together ---");
+        println!("Sender ID: {:?}", &self.sender_ID);
         println!("Recipient ID: {:?}", &self.recipient_ID);
         println!("role: {:?}", &self.role);
         println!("stage: {:?}", &self.stage);
