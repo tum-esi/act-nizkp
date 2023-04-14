@@ -132,7 +132,7 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32]) -> ([u8; 3
 }
 
 // Turn bytes value into Edward points.
-fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
+pub fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
     let compressed = CompressedEdwardsY(*bytes);
     compressed.decompress().unwrap()
 }

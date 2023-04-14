@@ -200,8 +200,35 @@ impl IntMutAuth {
         let proof = (self.recipient_commitment, self.my_challenge, self.recipient_response);
         let accepted = schnorr_identification::verify_int_proof(key_bytes, proof);
 
+        // Calculate the shared secret key
+        // Todo: Maybe consider running this code in a seperate thread if it takes too much time to run
+        if accepted == true {
+            self.calculate_shared_secret_key();
+        }
+
         // Return verification results
         accepted
+    }
+
+    fn calculate_shared_secret_key(&self) {
+        // Calculate shared secret key
+        let commitment = schnorr_identification::bytes_to_edwards(&self.recipient_commitment);
+        let shared_secret_key = (self.my_random_int * commitment).compress().to_bytes();
+
+        // Hash the shared secret key
+        let hashed_shared_Secret = schnorr_identification::sha3_256(&shared_secret_key, None, None, None);
+        let key_vec = Vec::from(hashed_shared_Secret);
+        let key_vec_copy = Vec::from(hashed_shared_Secret);
+        println!("{:?} Calculated shared Secret key as: {:?}", self.sender_ID, hashed_shared_Secret);
+
+        // Save the shared key in the OS
+        let desciption = format!("SharedSecretKey:{}:{}",&self.sender_ID, &self.recipient_ID);
+        let mut mykey = get_key_instance(&desciption, Some(key_vec)).unwrap();
+
+        // Check if key value was changed during initiation of Mykey instance or not. Change it if not
+        if mykey.get_key() != &key_vec_copy {
+            mykey.update_key_in_ring(key_vec_copy).unwrap();
+        }
     }
 
     // For Debugging
