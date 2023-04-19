@@ -54,7 +54,7 @@ pub fn sha3_256(arg1: &[u8], arg2: Option<&[u8]>, arg3: Option<&[u8]>, arg4: Opt
                 sha3_instance.update(x);
             },
             None => {
-                println!("Arg ignored.")
+
             }
         }
     }
@@ -83,7 +83,7 @@ pub fn kmac_256(key: [u8; 32], arg1: &[u8], arg2: Option<&[u8]>, arg3: Option<&[
                 kmac_instance.update(x);
             },
             None => {
-                println!("Arg ignored.")
+
             }
         }
     }
@@ -105,9 +105,9 @@ pub fn generate_proof_response(random_secret: Scalar, private_key: Scalar, chall
 // Todo: Make interactive mutual auth private and manage Auth initiation
 
 // Generate a proof that the device knows the private key, using Non-Interactive Zero-Knowledge
-// Todo: Add counter management
-// Todo: Add counter to MAC function
-pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32]) -> ([u8; 32], [u8; 32], [u8; 32]) {
+// ToDo: Add counter management
+// ToDo: Add counter to MAC function
+pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32], shared_counter: [u8; 4]) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // Turn private key into Scalar
     let private_key_sc = Scalar::from_bytes_mod_order(private_key);
 
@@ -118,7 +118,7 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32]) -> ([u8; 3
     // Generate challenge using KMAC function with a random value
     let challenge = kmac_256(shared_secret_key,
                                 &commitment,
-                                None,
+                                Some(&shared_counter),
                                 None);
 
     // Convert challenge into a Scalar
@@ -138,21 +138,18 @@ pub fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
 }
 
 // Verify if the challenge is generated correctly using the MAC Tag
-// Todo: Add optional arguments and counter support
-fn verify_challenge(shared_secret: [u8; 32], commitment: [u8; 32], challenge: [u8; 32]) -> bool {
+fn verify_challenge(shared_secret: [u8; 32], shared_counter: [u8; 4], commitment: [u8; 32], challenge: [u8; 32]) -> bool {
     // Generate expected challenge using KMAC function with a random value
     let expected_challenge = kmac_256(shared_secret,
-                                               &commitment,
-                                               None,
-                                               None);
+                                      &commitment,
+                                      Some(&shared_counter),
+                                      None);
 
     return challenge == expected_challenge;
 }
 
 // Verify the proof
-// Todo: Add optional arguments and counter support
-// Todo: Shared secret key suppot
-pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32],
+pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32], shared_counter: [u8; 4],
                     proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
 
     // Convert compressed public key into an Edwards point
@@ -162,7 +159,7 @@ pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32],
     let (commitment, challenge, response) = proof;
 
     // Verify Challenge generation
-    let challenge_accepted = verify_challenge(shared_secret, commitment, challenge);
+    let challenge_accepted = verify_challenge(shared_secret, shared_counter, commitment, challenge);
 
     // Convert values for schnorr verification
     let commitment_ed = bytes_to_edwards(&commitment);
