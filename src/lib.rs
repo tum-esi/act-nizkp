@@ -265,6 +265,136 @@ impl IntMutAuth {
     }
 }
 
+// Struct for mutual authentication using the NIZKP
+pub struct NIZKMutAuth {
+    pub sender_ID: u32,
+    pub recipient_ID: u32,
+    my_random_int: Scalar,
+    my_commitment: [u8; 32],
+    my_challenge: [u8; 32],
+    my_response: [u8; 32],
+    recipient_commitment: [u8; 32],
+    recipient_challenge: [u8; 32],
+    recipient_response: [u8; 32],
+    proof_accepted: bool,
+}
+
+impl NIZKMutAuth {
+    // Create a new instance of Int_mut_auth
+    pub fn new(sender_ID: u32, recipient_ID: u32, sender_proof: Option<([u8; 32], [u8; 32], [u8; 32])>) -> (NIZKMutAuth, ([u8; 32], [u8; 32], [u8; 32])) {
+        // Generate random secret scalar and Commitment
+        let my_random_int = schnorr_identification::generate_random_scalar();
+        let my_commitment = (my_random_int * &ED25519_BASEPOINT_POINT).compress().to_bytes();
+
+        // Init variables
+        let mut initiator = true;
+        let mut recipient_commitment = [0u8; 32];
+        let mut recipient_challenge = [0u8; 32];
+        let mut recipient_response = [0u8; 32];
+
+        // Check if we have recipient proof or if we need to init the values
+        match sender_proof {
+            Some((commitment, challenge, response)) => {
+                initiator = false;
+                recipient_commitment = commitment;
+                recipient_challenge = challenge;
+                recipient_response = response;
+            },
+            None => {
+
+            }
+        }
+
+        // Init protocol variables
+        let my_challenge = [0u8; 32];
+        let my_response = [0u8; 32];
+        let proof_accepted = false;
+
+        // Genrate Instance of interactive mutual authentication struct
+        let mut nizk_mut_auth = NIZKMutAuth {
+            sender_ID,
+            recipient_ID,
+            my_random_int,
+            my_commitment,
+            my_challenge,
+            my_response,
+            recipient_commitment,
+            recipient_challenge,
+            recipient_response,
+            proof_accepted,
+        };
+
+        // Generate NIZK proof
+        let (commitment, challenge, response) = nizk_mut_auth.nizk_proof();
+
+        // Return
+        (nizk_mut_auth, (commitment, challenge, response))
+    }
+
+    fn nizk_proof(&mut self) -> ([u8; 32], [u8; 32], [u8; 32]){
+        // Fetch secret key and shared secret key
+        let (privkey, _) = get_32byte_key(format!("PrivateKey:{}", self.sender_ID));
+        let (sharedkey, mut sk) = get_32byte_key(format!("SharedSecretKey:{}:{}", self.sender_ID, self.recipient_ID));
+
+        // Fetch shared counter value
+        let (shared_counter, mut sc) = get_shared_counter(self.sender_ID, self.recipient_ID);
+
+        // Calculate proof
+        let (r, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
+                                                                                      sharedkey,
+                                                                                      shared_counter);
+
+        // Save values
+        self.my_random_int = r;
+        self.my_commitment = commitment;
+        self.my_challenge = challenge;
+        self.my_response = response;
+
+        (commitment, challenge, response)
+    }
+
+    // Add proof values of recipient. This function should be called only by the initiator
+    pub fn add_recipient_values(&mut self, proof: ([u8; 32], [u8; 32], [u8; 32])) {
+        let (commitment, challenge, response) = proof;
+        self.recipient_commitment = commitment;
+        self.recipient_challenge = challenge;
+        self.recipient_response = response;
+    }
+
+    // Verif recipient's proof
+    pub fn verify_proof(&mut self) -> bool {
+        // Verify proof
+        let accepted = verify_nizk_proof(self.sender_ID,
+                                         self.recipient_ID,
+                                         (self.recipient_commitment,
+                                          self.recipient_challenge,
+                                          self.recipient_response));
+
+        // Save verification result
+        self.proof_accepted = accepted;
+
+        accepted
+    }
+
+    // Return session key
+    pub fn calculate_session_key(&self) -> [u8; 32] {
+        // Check if proof was accepted
+        if self.proof_accepted {
+            // Calculate shared session key
+            let commitment = schnorr_identification::bytes_to_edwards(&self.recipient_commitment);
+            let session_key = (self.my_random_int * commitment).compress().to_bytes();
+
+            // Hash the shared secret key
+            let hashed_session_key = schnorr_identification::sha3_256(&session_key, None, None, None);
+            println!("{:?} Calculated session key as: {:?}", self.sender_ID, hashed_session_key);
+
+            hashed_session_key
+        } else {
+            [0u8; 32]
+        }
+    }
+}
+
 // Function to read shared counter from OS
 fn get_shared_counter(my_ID: u32, receiver_ID: u32) -> ([u8; 4], MyKey) {
     // Fetch Counter from OS
@@ -295,9 +425,9 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8;
     // Fetch shared counter value
     let (shared_counter, mut sc) = get_shared_counter(my_ID, receiver_ID);
 
-    let (commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
-                                                                               sharedkey,
-                                                                               shared_counter);
+    let (_, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
+                                                                                  sharedkey,
+                                                                                  shared_counter);
     // Update shared counter and shared secret key in the background
     // move will make the thread take ownership of my_ID
     /*

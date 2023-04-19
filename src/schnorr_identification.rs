@@ -107,7 +107,7 @@ pub fn generate_proof_response(random_secret: Scalar, private_key: Scalar, chall
 // Generate a proof that the device knows the private key, using Non-Interactive Zero-Knowledge
 // ToDo: Add counter management
 // ToDo: Add counter to MAC function
-pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32], shared_counter: [u8; 4]) -> ([u8; 32], [u8; 32], [u8; 32]) {
+pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32], shared_counter: [u8; 4]) -> (Scalar, [u8; 32], [u8; 32], [u8; 32]) {
     // Turn private key into Scalar
     let private_key_sc = Scalar::from_bytes_mod_order(private_key);
 
@@ -128,7 +128,7 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32], shared_cou
     let response = generate_proof_response(r, private_key_sc, c);
 
     // Return commitment, challenge, and response
-    (commitment, challenge, response)
+    (r, commitment, challenge, response)
 }
 
 // Turn bytes value into Edward points.
