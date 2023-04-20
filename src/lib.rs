@@ -5,6 +5,7 @@ use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::scalar::Scalar;
 use std::thread;
 use crate::secret_management::MyKey;
+pub mod file_management;
 
 // Constants for defining a role of a protocol initiator or a receiver.
 pub const CONST_INITIATOR_ROLE: u8 = 0;
@@ -192,6 +193,13 @@ impl IntMutAuth {
 
     // Verify proof
     pub fn verify_proof(&self) -> bool {
+        // Check if commitment is never used to protect against replay attacks
+        if !file_management::check_commitment(self.recipient_ID, self.recipient_commitment) {
+            return false;
+        } else {
+            println!("Commitment was never used, continue verification.\n");
+        }
+
         // Fetch Public Key of the recipient
         let desciption = format!("PublicKey:{}", &self.recipient_ID);
         let recipient_pubkey = get_key_instance(&desciption, 32, None).unwrap();
@@ -386,7 +394,7 @@ impl NIZKMutAuth {
 
             // Hash the shared secret key
             let hashed_session_key = schnorr_identification::sha3_256(&session_key, None, None, None);
-            println!("{:?} Calculated session key as: {:?}", self.sender_ID, hashed_session_key);
+            println!("{:?} Calculated session key as: {:?}\n", self.sender_ID, hashed_session_key);
 
             hashed_session_key
         } else {
