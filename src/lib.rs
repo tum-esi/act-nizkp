@@ -277,6 +277,7 @@ impl IntMutAuth {
 pub struct NIZKMutAuth {
     pub sender_ID: u32,
     pub recipient_ID: u32,
+    initiator: bool,
     my_random_int: Scalar,
     my_commitment: [u8; 32],
     my_challenge: [u8; 32],
@@ -322,6 +323,7 @@ impl NIZKMutAuth {
         let mut nizk_mut_auth = NIZKMutAuth {
             sender_ID,
             recipient_ID,
+            initiator,
             my_random_int,
             my_commitment,
             my_challenge,
@@ -371,12 +373,18 @@ impl NIZKMutAuth {
 
     // Verif recipient's proof
     pub fn verify_proof(&mut self) -> bool {
+        // Fetch Public key of the sender, shared secret key, and shared counter
+        let (pubkey, _) = get_32byte_key(format!("PublicKey:{}", self.recipient_ID));
+        let (sharedkey, _) = get_32byte_key(format!("SharedSecretKey:{}:{}", self.sender_ID, self.recipient_ID));
+        let (shared_counter, _) = get_shared_counter(self.sender_ID, self.recipient_ID);
+
         // Verify proof
-        let accepted = verify_nizk_proof(self.sender_ID,
-                                         self.recipient_ID,
-                                         (self.recipient_commitment,
-                                          self.recipient_challenge,
-                                          self.recipient_response));
+        let accepted = schnorr_identification::verify_nizk_proof(pubkey,
+                                                                 sharedkey,
+                                                                 shared_counter,
+                                                                 (self.recipient_commitment,
+                                                                  self.recipient_challenge,
+                                                                  self.recipient_response));
 
         // Save verification result
         self.proof_accepted = accepted;
@@ -395,6 +403,19 @@ impl NIZKMutAuth {
             // Hash the shared secret key
             let hashed_session_key = schnorr_identification::sha3_256(&session_key, None, None, None);
             println!("{:?} Calculated session key as: {:?}\n", self.sender_ID, hashed_session_key);
+
+            // Update used values
+            if self.initiator {
+                update_used_values(self.sender_ID,
+                                   self.recipient_ID,
+                                   self.my_response,
+                                   Some(&self.recipient_response));
+            } else {
+                update_used_values(self.sender_ID,
+                                   self.recipient_ID,
+                                   self.recipient_response,
+                                   Some(&self.my_response));
+            }
 
             hashed_session_key
         } else {
@@ -436,16 +457,8 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8;
     let (_, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
                                                                                   sharedkey,
                                                                                   shared_counter);
-    // Update shared counter and shared secret key in the background
-    // move will make the thread take ownership of my_ID
-    /*
-    thread::spawn(move || {
-        println!("Prover {} started a thread:", my_ID);
-        update_used_values(my_ID, receiver_ID, response);
-    });
-    */
-    update_used_values(my_ID, receiver_ID, response);
-    //test_update_used_values(my_ID, receiver_ID, sk, sc, response);
+    // Update shared counter and shared secret key
+    update_used_values(my_ID, receiver_ID, response, None);
 
     // Return NIZK Proof
     (commitment, challenge, response)
@@ -465,14 +478,7 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32],
                                                              proof);
     // Update shared values if proof was accepted
     if accepted == true {
-        update_used_values(my_ID, sender_ID, response);
-        /*
-        println!("Verifier {} started a thread:", my_ID);
-        thread::spawn(move || {
-            update_used_values(my_ID, sender_ID, response);
-        });
-        */
-
+        update_used_values(my_ID, sender_ID, response, None);
     } else {
         println!("Verifier {} did not update values", my_ID);
     }
@@ -482,7 +488,7 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32],
 }
 
 // Update counter and secret key after each use
-pub fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
+fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32], additional_data: Option<&[u8]>) {
     // Fetch shared secret key and shared counter value
     let (sharedkey, mut sharedkey_ins) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, other_ID));
     let (shared_counter, mut shared_counter_ins) = get_shared_counter(my_ID, other_ID);
@@ -491,19 +497,11 @@ pub fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
     let mut counter_value: u32 = u32::from_be_bytes(shared_counter);
     counter_value = counter_value + 1;
 
-    /*
-    // Delete old key
-    println!("Deleting shared key");
-    sharedkey_ins.delete_key_from_ring();
-    println!("Deleting shared counter \n");
-    shared_counter_ins.delete_key_from_ring().unwrap();
-    */
-
     // Calculate the new shared secret key
     let new_key = schnorr_identification::sha3_256(&sharedkey,
                                                    Some(counter_value.to_be_bytes().as_ref()),
                                                    Some(&response),
-                                                   None);
+                                                   additional_data);
     println!("Generated new Key using hash.\n");
 
     // Update new key in OS
