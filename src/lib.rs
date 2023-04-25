@@ -444,8 +444,7 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8;
         update_used_values(my_ID, receiver_ID, response);
     });
     */
-    //update_used_values(my_ID, receiver_ID, response);
-
+    update_used_values(my_ID, receiver_ID, response);
     //test_update_used_values(my_ID, receiver_ID, sk, sc, response);
 
     // Return NIZK Proof
@@ -465,21 +464,25 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32],
                                                              shared_counter,
                                                              proof);
     // Update shared values if proof was accepted
-    /*
     if accepted == true {
+        update_used_values(my_ID, sender_ID, response);
+        /*
         println!("Verifier {} started a thread:", my_ID);
         thread::spawn(move || {
             update_used_values(my_ID, sender_ID, response);
         });
+        */
 
     } else {
-        println!("Verifier {} did not start a thread:", my_ID);
-    */
+        println!("Verifier {} did not update values", my_ID);
+    }
+
+    // Return verification result
     accepted
 }
 
 // Update counter and secret key after each use
-fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
+pub fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
     // Fetch shared secret key and shared counter value
     let (sharedkey, mut sharedkey_ins) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, other_ID));
     let (shared_counter, mut shared_counter_ins) = get_shared_counter(my_ID, other_ID);
@@ -488,11 +491,13 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
     let mut counter_value: u32 = u32::from_be_bytes(shared_counter);
     counter_value = counter_value + 1;
 
+    /*
     // Delete old key
     println!("Deleting shared key");
-    sharedkey_ins.delete_key_from_ring().unwrap();
+    sharedkey_ins.delete_key_from_ring();
     println!("Deleting shared counter \n");
     shared_counter_ins.delete_key_from_ring().unwrap();
+    */
 
     // Calculate the new shared secret key
     let new_key = schnorr_identification::sha3_256(&sharedkey,
@@ -502,47 +507,13 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32]) {
     println!("Generated new Key using hash.\n");
 
     // Update new key in OS
-    //let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), None).unwrap();
-    let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), 32, Some(Vec::from(new_key))).unwrap();
-    //sharedkey_ins.update_key_in_ring(Vec::from(new_key)).unwrap();
-    println!("{} updated the shared key!\n", my_ID);
+    // let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), None).unwrap();
+    // let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), 32, Some(Vec::from(new_key))).unwrap();
+    sharedkey_ins.update_key_in_ring(Vec::from(new_key)).unwrap();
+    println!("{} updated the shared key! as {:?}\n", my_ID, new_key);
 
     // Update Counter in OS
     counter_value = counter_value + 1;
-    //shared_counter_ins.update_key_in_ring(Vec::from(counter_value.to_be_bytes())).unwrap();
-    println!("{} updated the shared counter!\n", my_ID);
-}
-
-
-// Update counter and secret key after each use
-fn test_update_used_values(my_ID: u32, other_ID: u32, mut shared_key: MyKey, mut shared_counter_key: MyKey, response: [u8; 32]) {
-    // Fetch shared secret key and shared counter value
-    let key_ins: &[u8] = shared_key.get_key();
-    let sharedkey: [u8; 32] = <[u8; 32]>::try_from(key_ins).unwrap();
-
-    let shared_counter_b: &[u8] = shared_counter_key.get_key();
-    let shared_counter: [u8; 4] = <[u8; 4]>::try_from(shared_counter_b).unwrap();
-
-    // Convert counter into u32 and increment it
-    let mut counter_value: u32 = u32::from_be_bytes(shared_counter);
-    counter_value = counter_value + 1;
-
-    // Calculate the new shared secret key
-    let new_key = schnorr_identification::sha3_256(&sharedkey,
-                                                   Some(counter_value.to_be_bytes().as_ref()),
-                                                   Some(&response),
-                                                   None);
-    println!("Generated new Key using hash.\n");
-
-    // Update new key in OS
-    println!("key desc in os: {:?}\n", shared_key.key_description);
-    println!("Key values in OS: {:?}\n", shared_key.get_key());
-
-    //shared_key.update_key_in_ring(Vec::from(new_key)).unwrap();
-    println!("{} updated the shared key!\n", my_ID);
-
-    // Update Counter in OS
-    counter_value = counter_value + 1;
-    //shared_counter_key.update_key_in_ring(Vec::from(counter_value.to_be_bytes())).unwrap();
-    println!("{} updated the shared counter!\n", my_ID);
+    shared_counter_ins.update_key_in_ring(Vec::from(counter_value.to_be_bytes())).unwrap();
+    println!("{} updated the shared counter! as {:?}\n", my_ID, counter_value);
 }
