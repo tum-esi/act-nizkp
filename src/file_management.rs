@@ -6,9 +6,12 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::{Result, Value};
 use hex;
+use chrono::Utc;
 
 // Threshold for max key guesses
 const CONST_KEY_GUESS_THRESHOLD: u8 = 5;
+const CONST_MAX_AUTH_RATE: f64 = 0.5;      // 500 requests per 1000 ms
+const CONST_MIN_AUTH_RATE: f64 = 0.05;
 
 // File path of the used commitments list
 fn get_commitments_file_path(senderID: u32) -> String {
@@ -119,6 +122,9 @@ pub fn check_commitment(senderID: u32, commitment: [u8; 32]) -> bool {
 struct Intrusion {
     asym_counter: u8,
     sym_counter: u8,
+    start_timestamp: i64,
+    rejections: u16,
+    dos_attack: bool,
 }
 
 // Update the last intrusion system values
@@ -129,9 +135,13 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
     if !path.exists() {
         // Define Data
         let (asym, sym) = get_counter_values(schnorr_proof, mac_tag);
+        let timestamp = Utc::now().timestamp_millis();
         let intrusion = Intrusion {
             asym_counter: asym,
             sym_counter: sym,
+            start_timestamp: timestamp,
+            rejections: 1,
+            dos_attack: false,
         };
 
         // Convert Data to a JSON
@@ -149,14 +159,37 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
         file.write_all(json_string.as_bytes());
     }
     // File exists! Read content and modify data
-    else if (!mac_tag && schnorr_proof) || (mac_tag && !schnorr_proof) {
+    else {
+        // Get current timestamp
+        let timestamp = Utc::now().timestamp_millis();
+
         // Open file and read content as Intrusion struct
         let mut intrusion = read_intrusion_data(senderID);
+
+        // Calculate rejection rate
+        let rejection_rate: f64 = intrusion.rejections as f64 / (timestamp - intrusion.start_timestamp) as f64;
+        println!("Rejection rate = {:?}", rejection_rate);
+        println!("Max rate = {:?}", CONST_MAX_AUTH_RATE);
+        println!("Min rate = {:?}", CONST_MIN_AUTH_RATE);
+
+        // Dos
+        if (rejection_rate > CONST_MAX_AUTH_RATE) && (intrusion.rejections > 10) {
+            intrusion.dos_attack = true;
+            println!("Auth rejection rate is too high. Risk of DoS Attack")
+        } else if rejection_rate < CONST_MIN_AUTH_RATE {
+            intrusion.rejections = 0;
+            intrusion.dos_attack = false;
+            intrusion.start_timestamp = timestamp;
+            println!("Auth rejection rate is too low. No Risk.");
+        } else {
+            println!("Auth rejection rate is in the normal interval.");
+        }
 
         // Modify data
         let (asym, sym) = get_counter_values(schnorr_proof, mac_tag);
         intrusion.asym_counter = intrusion.asym_counter + asym;
         intrusion.sym_counter = intrusion.sym_counter + sym;
+        intrusion.rejections = intrusion.rejections + 1;
 
         // Convert to String and write it to file
         let json_string = serde_json::to_string(&intrusion).unwrap();
@@ -166,7 +199,7 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
 }
 
 // Check if a key is compromised or if a brute force attack is being conducted
-pub fn check_intrusion(senderID: u32) -> (bool, bool) {
+pub fn check_intrusion(senderID: u32) -> (bool, bool, bool) {
     // Open file and read content as Intrusion struct
     let mut intrusion = read_intrusion_data(senderID);
 
@@ -181,7 +214,7 @@ pub fn check_intrusion(senderID: u32) -> (bool, bool) {
     }
 
     // Return verification result
-    (asym_comp, sym_comp)
+    (asym_comp, sym_comp, intrusion.dos_attack)
 }
 
 fn read_intrusion_data(senderID: u32) -> Intrusion {

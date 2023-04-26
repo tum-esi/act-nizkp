@@ -525,6 +525,6 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32], additional_
 }
 
 // Check if there is a compromised key
-pub fn check_intrusion(senderID: u32) -> (bool, bool) {
+pub fn check_intrusion(senderID: u32) -> (bool, bool, bool) {
     file_management::check_intrusion(senderID)
 }

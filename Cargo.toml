@@ -16,6 +16,7 @@ curve25519-dalek = "3.2.1"
 hex = "0.4.3"
 serde = "1.0.160"
 serde_json = "1.0.96"
+chrono = "0.4.24"
 
 tiny-keccak = { version = "2.0.2", features = ["kmac", "sha3"] }
 

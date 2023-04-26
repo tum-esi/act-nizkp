@@ -132,6 +132,7 @@ pub fn nizk_proof(private_key: [u8; 32], shared_secret_key: [u8; 32], shared_cou
 }
 
 // Turn bytes value into Edward points.
+// ToDo: If this created an error, that means bytes or not valid on the elliptic curves. Reject request ...
 pub fn bytes_to_edwards(bytes: &[u8; 32]) -> EdwardsPoint {
     let compressed = CompressedEdwardsY(*bytes);
     compressed.decompress().unwrap()
