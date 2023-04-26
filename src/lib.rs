@@ -352,7 +352,8 @@ impl NIZKMutAuth {
         // Calculate proof
         let (r, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
                                                                                       sharedkey,
-                                                                                      shared_counter);
+                                                                                      shared_counter,
+                                                                                      None);
 
         // Save values
         self.my_random_int = r;
@@ -382,6 +383,7 @@ impl NIZKMutAuth {
         let (schnorr, mac) = schnorr_identification::verify_nizk_proof(pubkey,
                                                                        sharedkey,
                                                                        shared_counter,
+                                                                       None,
                                                                        (self.recipient_commitment,
                                                                         self.recipient_challenge,
                                                                         self.recipient_response));
@@ -451,7 +453,7 @@ fn get_32byte_key(description: String) -> ([u8; 32], MyKey) {
 }
 
 // ToDo: Add errors handling in case a key is not available !?
-pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8; 32]) {
+pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // Fetch secret key and shared secret key
     let (privkey, _) = get_32byte_key(format!("PrivateKey:{}", my_ID));
     let (sharedkey, mut sk) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, receiver_ID));
@@ -461,7 +463,8 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8;
 
     let (_, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
                                                                                   sharedkey,
-                                                                                  shared_counter);
+                                                                                  shared_counter,
+                                                                                  Some(message.as_bytes()));
     // Update shared counter and shared secret key
     update_used_values(my_ID, receiver_ID, response, None);
 
@@ -469,7 +472,7 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32) -> ([u8; 32], [u8; 32], [u8;
     (commitment, challenge, response)
 }
 
-pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
+pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, message: String, proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
     // Fetch Public key of the sender, shared secret key, and shared counter
     let (pubkey, _) = get_32byte_key(format!("PublicKey:{}", sender_ID));
     let (sharedkey, _) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, sender_ID));
@@ -480,6 +483,7 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32],
     let (schnorr, mac) = schnorr_identification::verify_nizk_proof(pubkey,
                                                                    sharedkey,
                                                                    shared_counter,
+                                                                   Some(message.as_bytes()),
                                                                    proof);
     // Update shared values if proof was accepted
     let accepted = schnorr && mac;
