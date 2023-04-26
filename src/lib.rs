@@ -379,15 +379,20 @@ impl NIZKMutAuth {
         let (shared_counter, _) = get_shared_counter(self.sender_ID, self.recipient_ID);
 
         // Verify proof
-        let accepted = schnorr_identification::verify_nizk_proof(pubkey,
-                                                                 sharedkey,
-                                                                 shared_counter,
-                                                                 (self.recipient_commitment,
-                                                                  self.recipient_challenge,
-                                                                  self.recipient_response));
-
+        let (schnorr, mac) = schnorr_identification::verify_nizk_proof(pubkey,
+                                                                       sharedkey,
+                                                                       shared_counter,
+                                                                       (self.recipient_commitment,
+                                                                        self.recipient_challenge,
+                                                                        self.recipient_response));
         // Save verification result
+        let accepted = schnorr && mac;
         self.proof_accepted = accepted;
+
+        // Check intrusion
+        if !accepted {
+            file_management::manage_intrusion(self.recipient_ID, schnorr, mac);
+        }
 
         accepted
     }
@@ -472,15 +477,18 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, proof: ([u8; 32], [u8; 32],
 
     // Get the commitment and the challenge response
     let (commitment, challenge, response) = proof;
-    let accepted = schnorr_identification::verify_nizk_proof(pubkey,
-                                                             sharedkey,
-                                                             shared_counter,
-                                                             proof);
+    let (schnorr, mac) = schnorr_identification::verify_nizk_proof(pubkey,
+                                                                   sharedkey,
+                                                                   shared_counter,
+                                                                   proof);
     // Update shared values if proof was accepted
+    let accepted = schnorr && mac;
     if accepted == true {
         update_used_values(my_ID, sender_ID, response, None);
     } else {
         println!("Verifier {} did not update values", my_ID);
+        // Check intrusion
+        file_management::manage_intrusion(sender_ID, schnorr, mac);
     }
 
     // Return verification result
@@ -514,4 +522,9 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32], additional_
     counter_value = counter_value + 1;
     shared_counter_ins.update_key_in_ring(Vec::from(counter_value.to_be_bytes())).unwrap();
     println!("{} updated the shared counter! as {:?}\n", my_ID, counter_value);
+}
+
+// Check if there is a compromised key
+pub fn check_intrusion(senderID: u32) -> (bool, bool) {
+    file_management::check_intrusion(senderID)
 }

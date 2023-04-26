@@ -150,7 +150,7 @@ fn verify_challenge(shared_secret: [u8; 32], shared_counter: [u8; 4], commitment
 
 // Verify the proof
 pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32], shared_counter: [u8; 4],
-                    proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
+                    proof: ([u8; 32], [u8; 32], [u8; 32])) -> (bool, bool) {
 
     // Convert compressed public key into an Edwards point
     let public_key_ed = bytes_to_edwards(&public_key);
@@ -171,7 +171,7 @@ pub fn verify_nizk_proof(public_key: [u8; 32], shared_secret: [u8; 32], shared_c
     let rhs = commitment_ed + challenge_sc * public_key_ed;
 
     // Compare the received commitment and the expected result
-    return (lhs == rhs) && challenge_accepted;
+    return (lhs == rhs, challenge_accepted);
 }
 
 // Verify the proof
@@ -194,3 +194,4 @@ pub fn verify_int_proof(public_key: [u8; 32], proof: ([u8; 32], Scalar, [u8; 32]
     // Compare the received commitment and the expected result
     return lhs == rhs;
 }
+
