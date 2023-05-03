@@ -157,6 +157,10 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
         let path = Path::new(&file_path);
         let mut file = File::create(&path).unwrap();
         file.write_all(json_string.as_bytes());
+
+        // Shrink file permissions
+        let file_path = get_intrusion_file_path(senderID);
+        shrink_file_permissions(file_path);
     }
     // File exists! Read content and modify data
     else {

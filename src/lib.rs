@@ -6,6 +6,7 @@ use curve25519_dalek::scalar::Scalar;
 use std::thread;
 use crate::secret_management::MyKey;
 pub mod file_management;
+pub mod access_control;
 
 // Constants for defining a role of a protocol initiator or a receiver.
 pub const CONST_INITIATOR_ROLE: u8 = 0;
