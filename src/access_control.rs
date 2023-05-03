@@ -1,12 +1,9 @@
-use std::fs::{File, OpenOptions, Permissions};
-use std::io::{BufReader, BufWriter, Write};
-use std::io::prelude::*;
+use std::fs::{File, Permissions};
+use std::io::{BufReader, Write};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use serde::{Deserialize, Serialize};
-use serde_json::{Result, Value};
-use hex;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ActionsControl {
@@ -43,6 +40,15 @@ fn create_parent_dirs(file_path: String) {
             }
         }
     }
+}
+
+// Save json data into a json file
+fn update_resource_data(resourceID: u32, data: String) {
+    // Create File with json content
+    let file_path = get_json_file_path(resourceID);
+    let path = Path::new(&file_path);
+    let mut file = File::create(&path).unwrap();
+    file.write_all(data.as_bytes());
 }
 
 // Create a new Resource
@@ -96,10 +102,7 @@ pub fn add_resource(resourceID: u32, actions: Option<Vec<Vec<u8>>>) -> u8 {
     create_parent_dirs(file_path);
 
     // Create File with json content
-    let file_path = get_json_file_path(resourceID);
-    let path = Path::new(&file_path);
-    let mut file = File::create(&path).unwrap();
-    file.write_all(json_string.as_bytes());
+    update_resource_data(resourceID, json_string);
 
     // Shrink file permissions
     let file_path = get_json_file_path(resourceID);
@@ -168,11 +171,8 @@ pub fn add_action_to_resource(resourceID: u32, actionName: Vec<u8>) -> u8 {
     accessData.actions.push(action);
 
     // Convert to String and write it to file
-    let file_path = get_json_file_path(resourceID);
-    let path = Path::new(&file_path);
     let json_string = serde_json::to_string(&accessData).unwrap();
-    let mut file = File::create(&path).unwrap();
-    file.write_all(json_string.as_bytes());
+    update_resource_data(resourceID, json_string);
 
     return 0;
 }
@@ -187,6 +187,12 @@ pub fn remove_action_from_resource(resourceID: u32, actionName: Vec<u8>) -> u8 {
         if action.actionName == actionName {
             // Remove action and break from loop
             accessData.actions.remove(index);
+
+            // Convert to String and write it to file
+            let json_string = serde_json::to_string(&accessData).unwrap();
+            update_resource_data(resourceID, json_string);
+
+            // Return success
             return 0;
         }
     }
@@ -205,12 +211,46 @@ pub fn add_device_to_resource_action(resourceID: u32, actionName: Vec<u8>, devic
         if action.actionName == actionName {
             // Add user to the allowed users for this action
             accessData.actions[index].allowedDevices.push(deviceID);
+
+            // Convert to String and write it to file
+            let json_string = serde_json::to_string(&accessData).unwrap();
+            update_resource_data(resourceID, json_string);
+
+            // Return success
             return 0;
         }
     }
 
     // Action not found, return 1.
     return 1;
+}
+
+// Add a device to all actions of a resource ID
+pub fn add_device_to_all_actions(resourceID: u32, deviceID: u32) -> u8 {
+    // Read access control data for the provided resource ID
+    let mut accessData = read_access_data(resourceID);
+    let mut accessDataCopy = read_access_data(resourceID);
+
+    // Go through all action in the access control data and find if an action matches
+    for (index, action) in accessData.actions.iter().enumerate() {
+        let mut id_exists = false;
+        let mut data_copy = &action.allowedDevices;
+        for (user_index, userID) in data_copy.iter().enumerate() {
+            if *userID == deviceID {
+                id_exists = true;
+            }
+        }
+        if !id_exists {
+            accessDataCopy.actions[index].allowedDevices.push(deviceID);
+        }
+    }
+
+    // Convert to String and write it to file
+    let json_string = serde_json::to_string(&accessDataCopy).unwrap();
+    update_resource_data(resourceID, json_string);
+
+    // Return 0 for success
+    return 0;
 }
 
 pub fn remove_device_from_resource_action(resourceID: u32, actionName: Vec<u8>, deviceID: u32) -> u8 {
@@ -221,9 +261,15 @@ pub fn remove_device_from_resource_action(resourceID: u32, actionName: Vec<u8>, 
     for (index, action) in accessData.actions.iter().enumerate() {
         if action.actionName == actionName {
             // Remove user from the allowed users for this action
-            for (user_index, userID) in action.allowedDevices.iter().enumerate(){
+            for (user_index, userID) in action.allowedDevices.iter().enumerate() {
                 if *userID == deviceID {
                     accessData.actions[index].allowedDevices.remove(user_index);
+
+                    // Convert to String and write it to file
+                    let json_string = serde_json::to_string(&accessData).unwrap();
+                    update_resource_data(resourceID, json_string);
+
+                    // Return success
                     return 0;
                 }
             }
@@ -234,6 +280,30 @@ pub fn remove_device_from_resource_action(resourceID: u32, actionName: Vec<u8>, 
 
     // Action not found, return 1
     return 1;
+}
+
+pub fn remove_device_from_all_actions(resourceID: u32, deviceID: u32) -> u8 {
+    // Read access control data for the provided resource ID
+    let mut accessData = read_access_data(resourceID);
+    let mut accessDataCopy = read_access_data(resourceID);
+
+    // Go through all action in the access control data and find if an action matches
+    for (index, action) in accessData.actions.iter().enumerate() {
+        // Remove user from the allowed users for this action
+        for (user_index, userID) in action.allowedDevices.iter().enumerate() {
+            if *userID == deviceID {
+                accessDataCopy.actions[index].allowedDevices.remove(user_index);
+                break;
+            }
+        }
+    }
+
+    // Convert to String and write it to file
+    let json_string = serde_json::to_string(&accessDataCopy).unwrap();
+    update_resource_data(resourceID, json_string);
+
+    // Return 0 for success
+    return 0;
 }
 
 // Check if a device has access to an action for a certain resource
