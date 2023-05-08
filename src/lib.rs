@@ -1,5 +1,5 @@
 mod secret_management;
-pub mod schnorr_identification;
+mod schnorr_identification;
 use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
 use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::scalar::Scalar;
@@ -38,6 +38,25 @@ pub fn get_key_instance(key_description: &str, key_size: usize, key: Option<Vec<
 pub fn get_int_mut_auth_instance(sender_ID: u32, recipient_ID: u32, role: u8) -> IntMutAuth {
     let mut ins = IntMutAuth::new(sender_ID, recipient_ID, role);
     ins
+}
+
+// Generate a random 32-byte value
+pub fn generate_random_32bytes() -> [u8; 32] {
+    schnorr_identification::generate_random_32bytes()
+}
+
+// Return Public and private key
+pub fn gen_random_key_pair() -> ([u8; 32], [u8; 32]) {
+    // Generate private key as a 32-byte randon value and as type Scalar
+    let random_bytes = generate_random_32bytes();
+    let private_key = Scalar::from_bytes_mod_order(random_bytes);
+    // let private_key = Scalar::from_bytes_mod_order(<[u8; 32]>::try_from(random_bytes).unwrap());
+
+    // Calculate public key using ED25519_BASEPOINT_POINT
+    let public_key = (private_key * &ED25519_BASEPOINT_POINT).compress().to_bytes();
+
+    // Return Public and Private Key pair
+    (public_key, private_key.to_bytes())
 }
 
 // Struct for interactive mutual authentication for secret key sharing
@@ -454,7 +473,7 @@ fn get_32byte_key(description: String) -> ([u8; 32], MyKey) {
 }
 
 // ToDo: Add errors handling in case a key is not available !?
-pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String) -> ([u8; 32], [u8; 32], [u8; 32]) {
+pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String, update_keys: bool) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // Fetch secret key and shared secret key
     let (privkey, _) = get_32byte_key(format!("PrivateKey:{}", my_ID));
     let (sharedkey, mut sk) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, receiver_ID));
@@ -467,13 +486,15 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String) -> ([u8; 32
                                                                                   shared_counter,
                                                                                   Some(message.as_bytes()));
     // Update shared counter and shared secret key
-    update_used_values(my_ID, receiver_ID, response, None);
+    if update_keys {
+        update_used_values(my_ID, receiver_ID, response, None);
+    }
 
     // Return NIZK Proof
     (commitment, challenge, response)
 }
 
-pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, message: String, proof: ([u8; 32], [u8; 32], [u8; 32])) -> bool {
+pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, message: String, proof: ([u8; 32], [u8; 32], [u8; 32]), update_keys: bool) -> bool {
     // Fetch Public key of the sender, shared secret key, and shared counter
     let (pubkey, _) = get_32byte_key(format!("PublicKey:{}", sender_ID));
     let (sharedkey, _) = get_32byte_key(format!("SharedSecretKey:{}:{}", my_ID, sender_ID));
@@ -489,7 +510,9 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, message: String, proof: ([u
     // Update shared values if proof was accepted
     let accepted = schnorr && mac;
     if accepted == true {
-        update_used_values(my_ID, sender_ID, response, None);
+        if update_keys {
+            update_used_values(my_ID, sender_ID, response, None);
+        }
     } else {
         println!("Verifier {} did not update values", my_ID);
         // Check intrusion
@@ -532,4 +555,9 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32], additional_
 // Check if there is a compromised key
 pub fn check_intrusion(senderID: u32) -> (bool, bool, bool) {
     file_management::check_intrusion(senderID)
+}
+
+// Init Data
+pub fn init_intrusion_counters(senderID: u32) {
+    file_management::init_data(senderID);
 }
