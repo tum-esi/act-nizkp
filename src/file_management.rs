@@ -251,21 +251,26 @@ fn get_counter_values(schnorr_proof: bool, mac_tag: bool) -> (u8, u8) {
 
 // Init intrusion data
 pub fn init_data(senderID: u32) {
-    // Open file and read content as Intrusion struct
-    let mut intrusion = read_intrusion_data(senderID);
-
-    // Get current timestamp
-    let timestamp = Utc::now().timestamp_millis();
-    intrusion.start_timestamp = timestamp;
-    intrusion.asym_counter = 0;
-    intrusion.sym_counter = 0;
-    intrusion.rejections = 0;
-    intrusion.dos_attack = false;
-
-    // Convert to String and write it to file
-    let json_string = serde_json::to_string(&intrusion).unwrap();
+    // Check if file exists and create file if it does not exist
     let file_path = get_intrusion_file_path(senderID);
     let path = Path::new(&file_path);
-    let mut file = File::create(&path).unwrap();
-    file.write_all(json_string.as_bytes());
+    if path.exists() {
+        // Open file and read content as Intrusion struct
+        let mut intrusion = read_intrusion_data(senderID);
+
+        // Get current timestamp
+        let timestamp = Utc::now().timestamp_millis();
+        intrusion.start_timestamp = timestamp;
+        intrusion.asym_counter = 0;
+        intrusion.sym_counter = 0;
+        intrusion.rejections = 0;
+        intrusion.dos_attack = false;
+
+        // Convert to String and write it to file
+        let json_string = serde_json::to_string(&intrusion).unwrap();
+        let file_path = get_intrusion_file_path(senderID);
+        let path = Path::new(&file_path);
+        let mut file = File::create(&path).unwrap();
+        file.write_all(json_string.as_bytes());
+    }
 }
