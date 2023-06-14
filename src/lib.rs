@@ -74,8 +74,6 @@ pub struct IntMutAuth {
     recipient_response: [u8; 32],
 }
 
-// ToDo: Add verifying if an interactive mutual authentication is allowed
-// ToDo: Add verifying last saved commitments
 impl IntMutAuth {
     // Create a new instance of Int_mut_auth
     pub fn new(sender_ID: u32, recipient_ID: u32, role: u8) -> IntMutAuth {
@@ -119,29 +117,24 @@ impl IntMutAuth {
     pub fn add_recipient_values(&mut self, request_type: u8, val1: [u8; 32], val2: Option<[u8; 32]>) -> u8 {
         match request_type {
             CONST_NEXT_STEP_REQUIRED => {
-                println!("1. Received request type {:?} from {:?}\n", request_type, &self.recipient_ID);
                 CONST_RESPONSE_CANNOT_BE_VERIFIED
             },
             CONST_COMMITMENT => {
                 self.recipient_commitment = val1;
-                println!("2. Received request type {:?} from {:?}\n", request_type, &self.recipient_ID);
                 CONST_RESPONSE_CANNOT_BE_VERIFIED
             },
             CONST_COMMITMENT_AND_CHALLENGE => {
                 self.recipient_commitment = val1;
                 self.recipient_challenge = Scalar::from_bytes_mod_order(val2.unwrap());
-                println!("3. Received request type {:?} from {:?}\n", request_type, &self.recipient_ID);
                 CONST_RESPONSE_CANNOT_BE_VERIFIED
             },
             CONST_CHALLENGE_AND_RESPONSE => {
                 self.recipient_challenge = Scalar::from_bytes_mod_order(val1);
                 self.recipient_response = val2.unwrap();
-                println!("4. Received request type {:?} from {:?}\n", request_type, &self.recipient_ID);
                 CONST_RESPONSE_CAN_BE_VERIFIED_AFTER_GENERATING_RESPONSE
             },
             CONST_RESPONSE => {
                 self.recipient_response = val1;
-                println!("5. Received request type {:?} from {:?}\n", request_type, &self.recipient_ID);
                 CONST_RESPONSE_CAN_BE_VERIFIED
             },
             _ => {
@@ -156,7 +149,6 @@ impl IntMutAuth {
             CONST_COMMITMENT => {
                 // Define next stage and return Commitment
                 self.stage = CONST_CHALLENGE_AND_RESPONSE;
-                println!("6. Sended request type 1 to {:?}\n", self.recipient_ID);
                 (self.my_commitment, None, CONST_COMMITMENT)
             },
             CONST_COMMITMENT_AND_CHALLENGE => {
@@ -166,7 +158,6 @@ impl IntMutAuth {
 
                 // Define next stage and return commitment and challenge
                 self.stage = CONST_RESPONSE;
-                println!("7. Sended request type 2 to {:?}\n", self.recipient_ID);
                 (self.my_commitment, Some(challenge), CONST_COMMITMENT_AND_CHALLENGE)
             },
             CONST_CHALLENGE_AND_RESPONSE => {
@@ -177,18 +168,14 @@ impl IntMutAuth {
                 // Calculate response
                 let response = self.gen_proof();
                 self.my_response = response;
-                println!("8. Sended request type 3 to {:?}\n", self.recipient_ID);
                 (challenge, Some(response), CONST_CHALLENGE_AND_RESPONSE)
             },
             CONST_RESPONSE => {
-                // ToDo: Add response calculation
                 let response = self.gen_proof();
                 self.my_response = response;
-                println!("9. Sended request type 4 to {:?}\n", self.recipient_ID);
                 (response, None, CONST_RESPONSE)
             },
             _ => {
-                // ToDo: Change This to be an error or a message code with a significance
                 (self.my_commitment, None, CONST_NEXT_STEP_REQUIRED)
             },
         }
@@ -216,8 +203,6 @@ impl IntMutAuth {
         // Check if commitment is never used to protect against replay attacks
         if !file_management::check_commitment(self.recipient_ID, self.recipient_commitment) {
             return false;
-        } else {
-            println!("Commitment was never used, continue verification.\n");
         }
 
         // Fetch Public Key of the recipient
@@ -233,7 +218,6 @@ impl IntMutAuth {
         let accepted = schnorr_identification::verify_int_proof(key_bytes, proof);
 
         // Calculate the shared secret key
-        // Todo: Maybe consider running this code in a seperate thread if it takes too much time to run
         if accepted == true {
             self.calculate_shared_secret_key();
         }
@@ -251,7 +235,6 @@ impl IntMutAuth {
         let hashed_shared_Secret = schnorr_identification::sha3_256(&shared_secret_key, None, None, None);
         let key_vec = Vec::from(hashed_shared_Secret);
         let key_vec_copy = Vec::from(hashed_shared_Secret);
-        println!("{:?} Calculated shared Secret key as: {:?}", self.sender_ID, hashed_shared_Secret);
 
         // Save the shared key in the OS
         let desciption = format!("SharedSecretKey:{}:{}",&self.sender_ID, &self.recipient_ID);
@@ -273,23 +256,6 @@ impl IntMutAuth {
         if mykey.get_key() != &shared_counter_vec_copy {
             mykey.update_key_in_ring(shared_counter_vec_copy).unwrap();
         }
-
-    }
-
-    // For Debugging
-    pub fn print_debug(&self) {
-        println!("\n--- All Values together ---");
-        println!("Sender ID: {:?}", &self.sender_ID);
-        println!("Recipient ID: {:?}", &self.recipient_ID);
-        println!("role: {:?}", &self.role);
-        println!("stage: {:?}", &self.stage);
-        println!("my_random_int: {:?}", &self.my_random_int);
-        println!("my_commitment: {:?}", &self.my_commitment);
-        println!("my_challenge: {:?}", &self.my_challenge);
-        println!("my_response: {:?}", &self.my_response);
-        println!("recipient_commitment: {:?}", &self.recipient_commitment);
-        println!("recipient_challenge: {:?}", &self.recipient_challenge);
-        println!("recipient_response: {:?}\n", &self.recipient_response);
     }
 }
 
@@ -429,7 +395,6 @@ impl NIZKMutAuth {
 
             // Hash the shared secret key
             let hashed_session_key = schnorr_identification::sha3_256(&session_key, None, None, None);
-            println!("{:?} Calculated session key as: {:?}\n", self.sender_ID, hashed_session_key);
 
             // Update used values
             if self.initiator {
@@ -472,7 +437,6 @@ fn get_32byte_key(description: String) -> ([u8; 32], MyKey) {
     (key, mykey)
 }
 
-// ToDo: Add errors handling in case a key is not available !?
 pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String, update_keys: bool) -> ([u8; 32], [u8; 32], [u8; 32]) {
     // Fetch secret key and shared secret key
     let (privkey, _) = get_32byte_key(format!("PrivateKey:{}", my_ID));
@@ -481,6 +445,7 @@ pub fn gen_nizk_proof(my_ID: u32, receiver_ID: u32, message: String, update_keys
     // Fetch shared counter value
     let (shared_counter, mut sc) = get_shared_counter(my_ID, receiver_ID);
 
+    // Generate proof
     let (_, commitment, challenge, response) = schnorr_identification::nizk_proof(privkey,
                                                                                   sharedkey,
                                                                                   shared_counter,
@@ -514,7 +479,6 @@ pub fn verify_nizk_proof(my_ID: u32, sender_ID: u32, message: String, proof: ([u
             update_used_values(my_ID, sender_ID, response, None);
         }
     } else {
-        println!("Verifier {} did not update values", my_ID);
         // Check intrusion
         file_management::manage_intrusion(sender_ID, schnorr, mac);
     }
@@ -538,18 +502,15 @@ fn update_used_values(my_ID: u32, other_ID: u32, response: [u8; 32], additional_
                                                    Some(counter_value.to_be_bytes().as_ref()),
                                                    Some(&response),
                                                    additional_data);
-    println!("Generated new Key using hash.\n");
 
     // Update new key in OS
     // let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), None).unwrap();
     // let mut sharedkey_ins = get_key_instance(&format!("SharedSecretKey:{}:{}", my_ID, other_ID), 32, Some(Vec::from(new_key))).unwrap();
     sharedkey_ins.update_key_in_ring(Vec::from(new_key)).unwrap();
-    println!("{} updated the shared key! as {:?}\n", my_ID, new_key);
 
     // Update Counter in OS
     counter_value = counter_value + 1;
     shared_counter_ins.update_key_in_ring(Vec::from(counter_value.to_be_bytes())).unwrap();
-    println!("{} updated the shared counter! as {:?}\n", my_ID, counter_value);
 }
 
 // Check if there is a compromised key

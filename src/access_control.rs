@@ -95,7 +95,6 @@ pub fn add_resource(resourceID: u32, actions: Option<Vec<Vec<u8>>>) -> u8 {
 
     // Convert struct to a JSON
     let json_string = serde_json::to_string(&access).unwrap();
-    println!("Serialized JSON string: {}", json_string);
 
     // Create parent directories if they does not exist
     let file_path = get_json_file_path(resourceID);

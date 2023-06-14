@@ -1,11 +1,11 @@
 # nizk_authentication
-A Rust library for a Non-Interactive Zero-Knowledge Authentication protocol in Rust
+A Rust library for a Non-Interactive Zero-Knowledge Authentication protocol
 
 ## Cross tool
-In this project we use the [cross tool](https://github.com/cross-rs/cross) to cross compile our code for target `armv7-unknown-linux-gnueabihf`.
+In this project we use the [cross tool](https://github.com/cross-rs/cross) to cross compile our code for target `arm-unknown-linux-gnueabihf` and `armv7-unknown-linux-gnueabihf`.
 
-The `Cross.toml` file provide the comfiguration for the cross compilation.
-The `Dockerfile` contains the docker image used to compile for `armv7-unknown-linux-gnueabihf`.
+## Examples
+Examples on using this library are available at [this repo](https://gitlabci.exxeta.com/firas.hamila/nizk_authentication)
 
-## Known Issues
-* When running the code using the cross tool, the secret key management system won't work probably. However, when built using cross and run directly on a raspberry pi 3 it would work. Tested only for raspberry pi 3 and linux computers.
+## Security Analysis
+Formal security analysis of this protocl using Tamarin-Prover is avaialble at [this repo](https://gitlabci.exxeta.com/firas.hamila/symbolic-nizk-auth)

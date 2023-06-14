@@ -47,13 +47,9 @@ impl MyKey {
                 match ring.search(&key_description_encoded) {
                     // Retrieve stored key if found
                     Ok(secret_key) => {
-                        println!("Key found stored in the OS. Retrieving Key from OS.\n");
                         my_key.key = secret_key.read_to_vec().unwrap();
                     },
                     Err(e) => {
-                        println!("Read key Error is: {:?}\n", e);
-                        println!("Value not found in the OS! Creating a new instance.\n");
-
                         // Assign provided key to MyKey
                         if key != None {
                             my_key.key = key.unwrap();
@@ -64,8 +60,6 @@ impl MyKey {
                         // Store key in Keyring
                         match ring.add_key(&key_description_encoded, &my_key.key) {
                             Ok(ring_key) => {
-                                println!("Successfully saved Key in OS. \n");
-
                                 // Define Key Permissions
                                 // https://docs.rs/linux-keyutils/latest/src/linux_keyutils/permissions.rs.html#33
                                 let perms = KeyPermissionsBuilder::builder()
@@ -135,9 +129,8 @@ impl MyKey {
 
     // Retrieve a secret key from Stored value in the os
     fn retrieve_key_from_ring(&self) -> Result<Key, SecretKeyErrors> {
-        // ToDo: Maybe try to use a safe operation instead of insafe here
         let description = unsafe {&*self.get_key_description()};
-        println!("Description = {:?}", description);
+
         match &self.ring.search(&description){
             Ok(secret) => {
                 Ok(*secret)

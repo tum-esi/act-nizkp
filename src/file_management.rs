@@ -96,8 +96,6 @@ pub fn check_commitment(senderID: u32, commitment: [u8; 32]) -> bool {
 
         return !commitment_exists;
     }else {
-        println!("Commitment file {:?} does not exist!\n", file_path);
-
         // Create parent directories if they don't already exist
         create_parent_dirs(get_commitments_file_path(senderID));
 
@@ -146,7 +144,6 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
 
         // Convert Data to a JSON
         let json_string = serde_json::to_string(&intrusion).unwrap();
-        println!("Serialized JSON string: {}", json_string);
 
         // Create parent directories if they does not exist
         let file_path = get_intrusion_file_path(senderID);
@@ -172,21 +169,18 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
 
         // Calculate rejection rate
         let rejection_rate: f64 = intrusion.rejections as f64 / (timestamp - intrusion.start_timestamp) as f64;
-        println!("Rejection rate = {:?}", rejection_rate);
-        println!("Max rate = {:?}", CONST_MAX_AUTH_RATE);
-        println!("Min rate = {:?}", CONST_MIN_AUTH_RATE);
+        // println!("Rejection rate = {:?}", rejection_rate);
+        // println!("Max rate = {:?}", CONST_MAX_AUTH_RATE);
+        // println!("Min rate = {:?}", CONST_MIN_AUTH_RATE);
 
         // Dos
         if (rejection_rate > CONST_MAX_AUTH_RATE) && (intrusion.rejections > 10) {
             intrusion.dos_attack = true;
-            println!("Auth rejection rate is too high. Risk of DoS Attack")
+            println!("Auth rejection rate is too high. Risk of DoS Attack!\n")
         } else if rejection_rate < CONST_MIN_AUTH_RATE {
             intrusion.rejections = 0;
             intrusion.dos_attack = false;
             intrusion.start_timestamp = timestamp;
-            println!("Auth rejection rate is too low. No Risk.");
-        } else {
-            println!("Auth rejection rate is in the normal interval.");
         }
 
         // Modify data
