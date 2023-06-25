@@ -40,6 +40,16 @@ pub fn get_int_mut_auth_instance(sender_ID: u32, recipient_ID: u32, role: u8) ->
     ins
 }
 
+pub fn get_int_schnorr_prover_instance(my_ID: u32, recipient_ID: u32) -> IntSchnorrProver {
+    let mut ins = IntSchnorrProver::new(my_ID, recipient_ID);
+    ins
+}
+
+pub fn get_int_schnorr_verifier_instance(my_ID: u32, sender_ID: u32, commitment: [u8; 32]) -> IntSchnorrVerifier {
+    let mut ins = IntSchnorrVerifier::new(my_ID, sender_ID, commitment);
+    ins
+}
+
 // Generate a random 32-byte value
 pub fn generate_random_32bytes() -> [u8; 32] {
     schnorr_identification::generate_random_32bytes()
@@ -522,3 +532,128 @@ pub fn check_intrusion(senderID: u32) -> (bool, bool, bool) {
 pub fn init_intrusion_counters(senderID: u32) {
     file_management::init_data(senderID);
 }
+
+// Struct for interactive SIS proof
+pub struct IntSchnorrProver {
+    pub my_ID: u32,
+    pub recipient_ID: u32,
+    my_random_int: Scalar,
+    pub my_commitment: [u8; 32],
+    pub my_challenge: Scalar,
+    pub my_response: [u8; 32],
+}
+
+// Prover for interactive Schnorr identification scheme over elliptic curves
+impl IntSchnorrProver {
+    // Create a new instance of Int_mut_auth
+    pub fn new(my_ID: u32, recipient_ID: u32) -> IntSchnorrProver {
+        // Generate random secret scalar and Commitment
+        let my_random_int = schnorr_identification::generate_random_scalar();
+        let my_commitment = (my_random_int * &ED25519_BASEPOINT_POINT).compress().to_bytes();
+
+        // Init protocol variables
+        let my_challenge = Scalar::from_bytes_mod_order([0u8; 32]);
+        let my_response = [0u8; 32];
+
+        // Genrate Instance of interactive mutual authentication struct
+        let mut int_schnorr_prover = IntSchnorrProver {
+            my_ID,
+            recipient_ID,
+            my_random_int,
+            my_commitment,
+            my_challenge,
+            my_response,
+        };
+
+        // Return
+        int_schnorr_prover
+    }
+
+    // Add Recipient Commitment
+    pub fn add_challenge(&mut self, challenge: Scalar) -> [u8; 32] {
+        // Save challenge and generate response
+        self.my_challenge = challenge;
+
+        // Calculate response
+        let response = self.gen_proof();
+        self.my_response = response;
+
+        response
+    }
+
+    // Generate Proof
+    fn gen_proof(&self) -> [u8; 32] {
+        // Fetch secret key, necessary for the proof and convert it to Scalar type
+        let desciption = format!("PrivateKey:{}", &self.my_ID);
+        let my_secret_key = get_key_instance(&desciption, 32, None).unwrap();
+        let key: &[u8] = my_secret_key.get_key();
+        let secret_key_bytes: [u8; 32] = <[u8; 32]>::try_from(key).unwrap();
+        let secret_key_sc = Scalar::from_bytes_mod_order(secret_key_bytes);
+
+        // Generate Proof
+        let proof = schnorr_identification::generate_proof_response(self.my_random_int,
+                                                                    secret_key_sc,
+                                                                    self.my_challenge);
+        // Return Proof
+        proof
+    }
+}
+
+// Struct for interactive mutual authentication for secret key sharing
+pub struct IntSchnorrVerifier {
+    pub my_ID: u32,
+    pub sender_ID: u32,
+    pub commitment: [u8; 32],
+    pub challenge: Scalar,
+    pub response: [u8; 32],
+}
+
+// Prover for interactive Schnorr identification scheme over elliptic curves
+impl IntSchnorrVerifier {
+    // Create a new instance of Int_mut_auth
+    pub fn new(my_ID: u32, sender_ID: u32, commitment: [u8; 32]) -> IntSchnorrVerifier {
+        // Generate random secret scalar and Commitment
+        let challenge = schnorr_identification::generate_random_scalar();
+
+        // Init protocol variables
+        let response = [0u8; 32];
+
+        // Genrate Instance of interactive mutual authentication struct
+        let mut int_schnorr_verifier = IntSchnorrVerifier {
+            my_ID,
+            sender_ID,
+            commitment,
+            challenge,
+            response,
+        };
+
+        // Return
+        int_schnorr_verifier
+    }
+
+    // Verify proof
+    pub fn verify_proof(&mut self, response: [u8; 32]) -> bool {
+        self.response = response;
+
+        // Check if commitment is never used to protect against replay attacks
+        if !file_management::check_commitment(self.sender_ID, self.commitment) {
+            return false;
+        }
+
+        // Fetch Public Key of the sender
+        let desciption = format!("PublicKey:{}", &self.sender_ID);
+        let sender_pubkey = get_key_instance(&desciption, 32, None).unwrap();
+
+        // Convert Key into [u8; 32] format
+        let key: &[u8] = sender_pubkey.get_key();
+        let key_bytes: [u8; 32] = <[u8; 32]>::try_from(key).unwrap();
+
+        // Verify proof
+        let proof = (self.commitment, self.challenge, response);
+        let accepted = schnorr_identification::verify_int_proof(key_bytes, proof);
+
+        // Return verification results
+        accepted
+    }
+}
+

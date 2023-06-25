@@ -10,8 +10,8 @@ use chrono::Utc;
 
 // Threshold for max key guesses
 const CONST_KEY_GUESS_THRESHOLD: u8 = 5;
-const CONST_MAX_AUTH_RATE: f64 = 0.5;      // 500 requests per 1000 ms
-const CONST_MIN_AUTH_RATE: f64 = 0.05;
+const CONST_MAX_AUTH_RATE: f64 = 0.01;      // 20 requests per 1000 ms
+const CONST_MIN_AUTH_RATE: f64 = 0.005;
 
 // File path of the used commitments list
 fn get_commitments_file_path(senderID: u32) -> String {
@@ -131,6 +131,7 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
     let file_path = get_intrusion_file_path(senderID);
     let path = Path::new(&file_path);
     if !path.exists() {
+        println!("Path does not exist\n");
         // Define Data
         let (asym, sym) = get_counter_values(schnorr_proof, mac_tag);
         let timestamp = Utc::now().timestamp_millis();
@@ -169,6 +170,7 @@ pub fn manage_intrusion(senderID: u32, schnorr_proof: bool, mac_tag: bool) {
 
         // Calculate rejection rate
         let rejection_rate: f64 = intrusion.rejections as f64 / (timestamp - intrusion.start_timestamp) as f64;
+        println!("Current rejection rate = {:?}\n", rejection_rate);
         // println!("Rejection rate = {:?}", rejection_rate);
         // println!("Max rate = {:?}", CONST_MAX_AUTH_RATE);
         // println!("Min rate = {:?}", CONST_MIN_AUTH_RATE);
