@@ -1,0 +1,260 @@
+theory session_key_agreement
+begin
+
+builtins: bilinear-pairing, hashing
+
+// Functions for the ZK Proof and functions for the MAC Tag
+functions: schnorrZKProof/3, multp/1,
+           MAC/2, trueMAC/0, verifyMAC/3, increment_counter/1, plus/2,
+           genSessionKey/2
+
+// Equation to verify a MAC function
+equations: verifyMAC(k, m, MAC(k, m)) = trueMAC,
+           increment_counter(counter) = plus(counter, 1)
+
+
+// Generate Public and Private Key pair
+rule generate_KeyPair:
+	[ Fr(~skA) ]
+    --[ HonestKey($A, ~skA) ]->
+	[ !SecretKey($A, ~skA), !PubKey($A, multp(~skA)) ]
+
+// Rule to output a public key of A or B
+rule get_pubKey:
+	[ !PubKey($A, multp(skA)) ]
+    -->
+	[ Out(multp(skA)) ]
+
+// Rule to reveal the secret key to the adversary
+rule reveal_secretKey:
+	[ !SecretKey($A, skA) ]
+    --[ RevealSecret($A) ]->
+	[ Out(skA) ]
+
+// Shared Secret Key for MAC function
+rule shared_secret_key:
+    [ Fr(~ssk) ]
+    --[ HonestSharedKey($A, $B, ~ssk) ]->
+    [ !SharedSecretKey($A, $B, ~ssk) ]
+
+// Rule to reveal the shared secret key
+rule reveal_shared_secretKey:
+    [ !SharedSecretKey($A, $B, ssk) ]
+    --[ RevealSharedSecret($A, $B) ]->
+    [ Out(ssk) ]
+
+// Rule to generate/fetch the common counter used in the MAC Proof
+rule get_common_counter:
+    [ ]
+    --[ GetCounter($counter) ]->
+    [ Out($counter) ]
+
+// Protocol Init for A and B
+rule InitA:
+	[ 
+        Fr(~id),
+	    !SecretKey($A, skA),
+        !PubKey($A, multp(skA)),
+        !SharedSecretKey($A, B, ssk)
+	]
+    --[ 
+        InitA(),
+        CreateA($A, ~id)
+    ]->
+	[ AState1($A, ~id, skA, multp(skA), ssk) ]
+  
+rule InitB:
+	[ 
+        Fr(~id),
+        !SecretKey($B, skB),
+        !PubKey($B, multp(skB)),
+        !SharedSecretKey(A, $B, ssk)
+    ]
+    --[
+        InitB(),
+        CreateB($B, ~id) 
+    ]->
+	[ BState1($B, ~id, skB, multp(skB), ssk) ]
+
+// Generate A's Proof
+rule AProof:
+    let
+        R_A = multp(~r_A)
+        proof_counter = increment_counter($counter)
+        challenge_A = MAC(ssk, <R_A, proof_counter>)
+        proof_A = schnorrZKProof(skA, ~r_A, challenge_A)
+    in
+	[
+        AState1(A, id, skA, multp(skA), ssk),
+	    Fr(~r_A),
+        In($counter)
+    ]
+    --[ 
+        ACreatedSchnorrZKPForWitness(A, skA)
+    ]->
+    [
+        AState2(A, id, ssk, ~r_A, R_A),
+        Out(<proof_A, R_A, challenge_A>)
+    ]
+
+
+// Verify proof of A and generate Proof for B
+rule BVerifyBProof:
+    let
+        R_B = multp(~r_B)
+        proof_counter = increment_counter($counter)
+        challenge_B = MAC(ssk, <R_A, R_B, proof_counter>)
+        proof_B = schnorrZKProof(skB, ~r_B, challenge_B)
+    in
+	[
+        BState1(B, id, skB, multp(skB), ssk),
+        !PubKey($A, APK),
+        Fr(~r_B),
+        In($counter),
+        In(<proof_A, R_A, challenge_A>)
+    ]
+    --[
+        BReceivedZKP(B, id, proof_A, APK, R_A, challenge_A),
+
+        // Verify if the challenge was generated correctly
+        Eq(
+            verifyMAC(ssk, <R_A, proof_counter>, challenge_A),
+            trueMAC
+        ),
+
+        ValidSchnorrZKP(proof_A, APK, R_A, challenge_A),
+        BVerifiedAsProofAndBCreatedSchnorrZKPForWitness(B, proof_A, skB),
+        SessionKey(B, $A, genSessionKey(~r_B, R_A))
+    ]->
+	[ Out(<proof_B, R_B, challenge_B>) ]
+
+
+// Verify proof of B
+rule AVerify:
+    let
+        counter = increment_counter($counter)
+    in
+    [
+        AState2(A, id, ssk, rr_A, R_A),
+        !PubKey($B, BPK),
+        In($counter),
+        In(<proof_B, R_B, challenge_B>)
+    ]
+    --[
+        AReceivedZKP(A, id, proof_B, BPK, R_B, challenge_B),
+        
+        // Verify if the challenge was generated correctly
+        Eq(
+            verifyMAC(ssk, <R_A, R_B, $counter>, challenge_B),
+            trueMAC
+        ),
+
+        ValidSchnorrZKP(proof_B, BPK, R_B, challenge_B),
+        AVerifiedSchnorrZKPForProof(A, proof_B),
+        SessionKey(A, $B, genSessionKey(rr_A, R_B)),
+        Finish(A, id)
+    ]->
+    []
+
+
+// Restrictions    
+// We restrict the equality Eq to x = y
+restriction Equality:
+    "All x y #i. Eq(x, y)@i ==> x = y" 
+
+// This restriction is for verifying the Zero-Knowledge Proof
+restriction IsValidZkp:
+  "
+    All #i w r cl cr pkey R. ValidSchnorrZKP(schnorrZKProof(w, r, cl), pkey, R, cr)@i
+      ==> (Ex m n. pkey = multp(m) & R = multp(n) &
+      m = w & n = r & cl = cr)
+  "
+
+
+// Lemmas
+// Protocol is executable
+lemma executable:
+    exists-trace
+        "
+            // A ZKP of an honest key can be verified
+            (
+                Ex A B #i1 #i2 #i3 #i4 #i5 #i7 skA skB ssk Aproof Bproof.
+                HonestKey(A, skA)@i1 & HonestKey(B, skB)@i2 &
+                HonestSharedKey(A, B, ssk)@ i3 &
+                ACreatedSchnorrZKPForWitness(A, skA)@i4 &
+                BVerifiedAsProofAndBCreatedSchnorrZKPForWitness(B, Aproof, skB)@i5 &
+                AVerifiedSchnorrZKPForProof(A, Bproof)@i7 &
+                i1 < i3 & i2 < i3 & i3 < i4 & i4 < i5 & i5 < i7
+            ) &
+
+            // Both A and B are only initiated once
+            ( All #i #j. InitA()@i & InitA()@j ==> #i = #j ) &
+            ( All #i #j. InitB()@i & InitB()@j ==> #i = #j ) &
+
+            // Protocol is executed between two parties
+            ( Ex A B idA idB #i #j. CreateA(A, idA)@i & CreateB(B, idB)@j & not A=B ) &
+
+            // The secret key of A was not compromised
+            not ( Ex A idA #i #j. CreateA(A, idA)@i & RevealSecret(A)@j ) &
+
+            // The secret key of B was not compromised
+            not ( Ex B idB #i #j. CreateB(B, idB)@i & RevealSecret(B)@j ) &
+
+            // The shared secret key between A and B was not compromised
+            not ( Ex A B idA idB #i #j #l. CreateA(A, idA)@i & CreateB(B, idB)@j & RevealSharedSecret(A, B)@l ) &
+
+            // The shared session key between A and B was not compromised
+            not ( 
+                Ex A B shared_session_key #i #j #k.
+                SessionKey(A, B, shared_session_key) @ #i &
+                SessionKey(B, A, shared_session_key) @ #j &
+                #j < #i &
+                K(shared_session_key) @k
+            )
+        "
+
+// Protocol satisfies the zero-knowledge property for both A and B
+lemma zero_knowledge:
+  "
+    not(
+        Ex A B skA skB zkproof_A #i1 #i2 #i3 #i4.
+        ACreatedSchnorrZKPForWitness(A, skA)@i1 &
+        BVerifiedAsProofAndBCreatedSchnorrZKPForWitness(B, zkproof_A, skB) @i2 &
+        not(A = B) &
+        K(skA)@i3 & K(skB) @i4 &
+        not (Ex #i #j. RevealSecret(A)@i & RevealSecret(B)@j)
+    )
+  "
+
+// Man-in-the-middle cannot reveal the shared session key
+lemma session_key_secrecy:
+    "
+    All A B shared_session_key #i #j.
+        (
+            SessionKey(A, B, shared_session_key) @ #i &
+            SessionKey(B, A, shared_session_key) @ #j &
+            #j < #i &
+            not(A = B)
+        )
+        ==> not(Ex #k . K(shared_session_key) @ #k)
+    "
+
+// lemma for forward secrecy
+lemma forward_secrecy:
+    "
+    All A B shared_session_key_1 shared_session_key_2 #i1 #i2 #i3 #i4 #k1.
+        (
+            SessionKey(B, A, shared_session_key_1) @ #i1 &
+            SessionKey(A, B, shared_session_key_1) @ #i2 &
+            SessionKey(B, A, shared_session_key_2) @ #i3 &
+            SessionKey(A, B, shared_session_key_2) @ #i4 &
+            #i1 < #i2 & #i2 < #i3 & #i3 < #i4 &
+            not(A = B) &
+            K(shared_session_key_2) @ #k1 &
+            #i4 < #k1 
+        )
+        ==> not(Ex #k2. K(shared_session_key_1) @ #k2)
+    "
+
+
+end

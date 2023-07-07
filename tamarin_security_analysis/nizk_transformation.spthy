@@ -1,0 +1,251 @@
+theory nizk_transformation
+begin
+
+builtins: bilinear-pairing, hashing
+
+// Functions for the ZK Proof and functions for the MAC Tag
+functions: schnorrZKProof/3, multp/1,
+           MAC/2, trueMAC/0, verifyMAC/3, increment_counter/1, plus/2
+
+// Equation to verify a MAC function
+equations: verifyMAC(k, m, MAC(k, m)) = trueMAC,
+           increment_counter(counter) = plus(counter, 1)
+
+
+// Generate Public and Private Key pair
+rule generate_KeyPair:
+	[ Fr(~skA) ]
+    --[ HonestKey($A, ~skA) ]->
+	[ !SecretKey($A, ~skA), !PubKey($A, multp(~skA)) ]
+
+// Rule to output a public key of A or B
+rule get_pubKey:
+	[ !PubKey($A, multp(skA)) ]
+    -->
+	[ Out(multp(skA)) ]
+	
+// Rule to reveal the secret key to the adversary
+rule reveal_secretKey:
+	[ !SecretKey($A, skA) ]
+    --[ RevealSecret($A) ]->
+	[ Out(skA) ]
+
+// Shared Secret Key for MAC function
+rule shared_secret_keyt:
+    [ Fr(~ssk) ]
+    --[ HonestSharedKey($A, $B, ~ssk) ]->
+    [ !SharedSecretKey($A, $B, ~ssk) ]
+
+// Rule to reveal the shared secret key
+rule reveal_shared_secretKey:
+    [ !SharedSecretKey($A, $B, ssk) ]
+    --[ RevealSharedSecret($A, $B) ]->
+    [ Out(ssk) ]
+
+// Rule to generate/fetch the common counter of A used in the MAC Proof
+rule get_common_counter:
+    [ ]
+    --[ GetCounter($counter) ]->
+    [ Out($counter) ]
+
+
+// Protocol Init for A and B
+rule InitA:
+	[ 
+        Fr(~id),
+	    !SecretKey($A, skA),
+        !PubKey($A, multp(skA)),
+        !SharedSecretKey($A, B, ssk)
+	]
+    --[ 
+        InitA(),
+        CreateA($A, ~id),
+        KnowsWitness($A, skA)
+    ]->
+	[ AState1($A, ~id, skA, multp(skA), ssk) ]
+  
+rule InitB:
+	[ 
+        Fr(~id),
+        !SharedSecretKey(A, $B, ssk)
+    ]
+    --[
+        InitB(),
+        CreateB($B, ~id) 
+    ]->
+	[ BState1($B, ~id, ssk) ]
+
+
+// Generate A's Proof
+rule AProof:
+    let
+        R = multp(~r)
+        proof_counter = increment_counter($counter)
+        challenge = MAC(ssk, <~m, R, proof_counter>)
+        proof = schnorrZKProof(skA, ~r, challenge)
+    in
+	[
+        AState1(A, id, skA, multp(skA), ssk),
+	    Fr(~r),
+        Fr(~m),
+        In($counter)
+    ]
+    --[ 
+        CreatedSchnorrZKPForWitness(A, skA),
+        CreatedTagForMessage(A, ~m),
+        Honest(A)
+    ]->
+    [ Out(<proof, ~m, R, challenge>) ]
+
+
+// Rule to make adversary intercept and modify a message
+rule AdversaryInterceptMessage:
+    let
+        m = ~fake_m
+    in
+    [
+        In(<proof, m, R, challenge>),
+        Fr(~fake_m)
+    ]
+    --[
+        AdversaryModifiedMessage(m, ~fake_m)
+    ]->
+    [ Out(<proof, m, R, challenge>) ]
+
+
+// Verify proof
+rule BVerify:
+    let
+        counter = increment_counter($counter)
+    in
+	[
+        BState1(B, id, ssk),
+        !PubKey($A, APK),
+        In($counter),
+        In(<proof, m, R, challenge>)
+    ]
+    --[
+        ReceivedZkp(B, id, proof, APK, R, challenge),
+
+        // Verify if the challenge was generated correctly
+        Eq(
+            verifyMAC(ssk, <m, R, $counter>, challenge),
+            trueMAC
+        ),
+        
+        VerifiedTagForMessage(B, m),
+        ValidSchnorrZKP(proof, APK, R, challenge),
+        VerifiedSchnorrZKPForProof(B, proof),
+        VerifiedSchnorrZKP(B, id, proof, APK, R, challenge),
+        Finish(B, id),
+        Honest(B) 
+    ]->
+	[]
+
+
+
+
+// Restrictions    
+// We restrict the equality Eq to x = y
+restriction Equality:
+    "All x y #i. Eq(x, y)@i ==> x = y" 
+
+// This restriction is for verifying the Zero-Knowledge Proof
+restriction IsValidZkp:
+  "
+    All #i w r cl cr pkey R. ValidSchnorrZKP(schnorrZKProof(w, r, cl), pkey, R, cr)@i
+      ==> (Ex m n. pkey = multp(m) & R = multp(n) & m = w & n = r & cl = cr)
+  "
+
+
+// Lemmas
+// Protocol is executable
+lemma executable:
+    exists-trace
+        "
+            // A ZKP of an honest key can be verified
+            (
+                Ex A B #i1 #i2 #i3 #i4 skA ssk proof.
+                HonestKey(A, skA)@i1 &
+                HonestSharedKey(A, B, ssk)@ i2 &
+                CreatedSchnorrZKPForWitness(A, skA)@i3 &
+                VerifiedSchnorrZKPForProof(B, proof)@i4 &
+                i1 < i2 & i3 < i4
+            ) &
+
+            // Both A and B are only initiated once
+            ( All #i #j. InitA()@i & InitA()@j ==> #i = #j ) &
+            ( All #i #j. InitB()@i & InitB()@j ==> #i = #j ) &
+
+            // Protocol is executed between two parties
+            ( Ex A B idA idB #i #j. CreateA(A, idA)@i & CreateB(B, idB)@j & not A=B ) &
+
+            // The secret key of A was not compromised
+            not ( Ex A idA #i #j. CreateA(A, idA)@i & RevealSecret(A)@j ) &
+
+            // The shared secret key between A and B was not compromised
+            not ( Ex A B idA idB #i #j #l. CreateA(A, idA)@i & CreateB(B, idB)@j & RevealSharedSecret(A, B)@l )
+        "
+
+// Protocol satisfies the completeness property
+lemma completeness:
+    "
+        All B id w r c pkey R #i1 #i3.
+        ( Ex m n. pkey = multp(m) & R = multp(n) & m = w & n = r ) &
+        ReceivedZkp(B, id, schnorrZKProof(w, r, c), pkey, R, c)@i1 & 
+        Finish(B, id)@i3
+        ==> ( Ex #j. VerifiedSchnorrZKP(B, id, schnorrZKProof(w, r, c), pkey, R, c)@j )
+    "
+
+// Protocol satisfies the soundness property
+lemma soundness:
+    "
+        All B id #i1 w r cl cr pkey R.
+        VerifiedSchnorrZKP(B, id, schnorrZKProof(w, r, cl), pkey, R, cr)@i1
+        ==> ( Ex m n. pkey = multp(m) & R = multp(n) & m = w & n = r & cl = cr ) &
+            (
+                ( Ex A #i. KnowsWitness(A, w)@i)
+                | ( Ex A #i. RevealSecret(A)@i )
+                | ( Ex #i. KU(w)@i )
+            )
+    "
+
+// Protocol satisfies the zero-knowledge property
+lemma zero_knowledge:
+  "
+    not(
+        Ex A w #i2 #i3.
+        CreatedSchnorrZKPForWitness(A, w)@i2
+        & K(w)@i3
+        & not (Ex #j. RevealSecret(A)@j)
+    )
+  "
+
+
+// Resilience against message modification attacks
+lemma message_integrity:
+    "
+        All A B #i1 #i2 #i3 m fake_m.
+        (
+            CreatedTagForMessage(A, m)@i1 &
+            AdversaryModifiedMessage(m, fake_m)@i2 &
+            VerifiedTagForMessage(B, fake_m)@i3 &
+            #i1 < #i2 & #i2 < #i3 &
+            not(A = B)
+        )
+        ==> (m = fake_m)
+    "
+
+// Resilience against replay attacks
+lemma replay_resilience:
+    "
+        All B id #i1 w r cl cr pkey R.
+        VerifiedSchnorrZKP(B, id, schnorrZKProof(w, r, cl), pkey, R, cr)@i1
+        ==> not ( 
+                    Ex #i2. 
+                    VerifiedSchnorrZKP(B, id, schnorrZKProof(w, r, cl), pkey, R, cr)@i2 & 
+                    #i1 < #i2 
+                )    
+    "
+
+end

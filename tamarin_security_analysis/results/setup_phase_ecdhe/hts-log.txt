@@ -1,0 +1,27 @@
+HTTrack3.49-2+libhtsjava.so.2 launched on Fri, 07 Jul 2023 20:40:34 at http://127.0.0.1:3001/thy/trace/5/overview/proof/secret_keys_secrecy/_/ACommitsToB/BCommitsAndChallengesA/generate_KeyPair/reveal_secretKey/reveal_secretKey +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/*
+(webhttrack -q -%i -w http://127.0.0.1:3001/thy/trace/5/overview/proof/secret_keys_secrecy/_/ACommitsToB/BCommitsAndChallengesA/generate_KeyPair/reveal_secretKey/reveal_secretKey -O "/home/fiha/workspace/Master Thesis/Tamarin/proof/setup_phase_ecdhe" -n -t -%P -N0 -s2 -p7 -D -a -K0 -c4 -%k -A25000 -F "Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)" -%F "<!-- Mirrored from %s%s by HTTrack Website Copier/3.x [XR&CO'2014], %s -->" +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/* -%s -%u )
+
+Information, Warnings and Errors reported for this mirror:
+note:	the hts-log.txt file, and hts-cache folder, may contain sensitive information,
+	such as username/password authentication for websites mirrored in this project
+	do not share these files/folders if you want these information to remain private
+
+20:41:07	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery.js
+20:41:07	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery-ui.js
+20:41:07	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery-layout.js
+20:41:07	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery-cookie.js
+20:41:20	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery-superfish.js
+20:41:20	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/jquery-contextmenu.js
+20:41:20	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/js/tamarin-prover-ui.js
+20:41:20	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/img/ajax-loader.gif
+20:41:23	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/img/option-light.png
+20:41:23	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/img/option-dark.png
+20:41:23	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/img/option-off.png
+20:41:28	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/img/autoprove.png
+20:41:31	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/css/smoothness/images/ui-bg_flat_75_ffffff_40x100.png
+20:41:31	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/css/smoothness/images/ui-bg_highlight-soft_75_cccccc_1x100.png
+20:41:51	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/css/smoothness/images/ui-icons_cd0a0a_256x240.png
+20:41:51	Warning: 	File seems complete (same size), but there was a cache read error (4294967295): 127.0.0.1:3001/static/css/smoothness/images/ui-bg_flat_0_aaaaaa_40x100.png
+
+HTTrack Website Copier/3.49-2 mirror complete in 1 minutes 18 seconds : 33 links scanned, 49 files written (1424204 bytes overall) [549496 bytes received at 7044 bytes/sec], 1066333 bytes transferred using HTTP compression in 18 files, ratio 32%
+(No errors, 16 warnings, 0 messages)
