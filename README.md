@@ -1,5 +1,5 @@
 # nizk_authentication
-A Rust library for a Non-Interactive Zero-Knowledge Authentication protocol
+A Rust library for a Non-Interactive Zero-Knowledge Authentication protocol in collaboration with the [Technical University of Munich (TUM)](https://www.tum.de/en/).
 
 ## Cross tool
 In this project we use the [cross tool](https://github.com/cross-rs/cross) to cross compile our code for target `arm-unknown-linux-gnueabihf` and `armv7-unknown-linux-gnueabihf`.
