@@ -1,0 +1,31 @@
+[package]
+name = "nizk_auth_examples"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+linux-keyutils = "0.2.3"
+chrono = "0.4.23"
+schnorr_nizk = { path = "/home/fiha/workspace/Master Thesis/Authentication_Protocol/nizk_authentication", version = "0.1.0" }
+serde = "1.0.160"
+serde_json = "1.0.96"
+
+[target.x86_64-unknown-linux-gnu]
+
+[target.armv7-unknown-linux-gnueabihf]
+
+[target.arm-unknown-linux-gnueabihf]
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "tcp_client"
+path = "src/tcp_client.rs"
+
+[[bin]]
+name = "tcp_server"
+path = "src/tcp_server.rs"
