@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # act-nizkp
 A Rust crate for a Non-Interactive Zero-Knowledge Authentication protocol in collaboration with the [Technical University of Munich (TUM)](https://www.tum.de/en/).
 
@@ -11,6 +12,7 @@ A Rust crate for a Non-Interactive Zero-Knowledge Authentication protocol in col
 The crate code can be found at `./lib`
 
 ## Examples
+<<<<<<< HEAD
 Examples on using this crate can be found at `./examples`
 
 ## Security Analysis
