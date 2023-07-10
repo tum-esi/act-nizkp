@@ -9,3 +9,8 @@ Formal security analysis using [Tamarin-Prover](https://tamarin-prover.github.io
     1. Click on `sorry`.
     1. Click on `autoprove (S. for all solutions) for all lemmas`.
 + More information about Tamarin-Prover is avaialble [here](https://tamarin-prover.github.io/manual/book/001_introduction.html).
+
+## Results
+* During the formal security analysis of our three sub-protocols using Tamarin-Prover, the verification process was successfully completed without encountering any issues.
+* All the lemmas were examined and verified, ensuring the protocol's completeness, soundness, zero-knowledge property, and resilience against various attacks.
+* An example run of our model is available under the folder [results](https://github.com/tum-esi/act-nizkp/tree/main/tamarin_security_analysis/results).
